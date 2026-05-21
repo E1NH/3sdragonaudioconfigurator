@@ -1,0 +1,202 @@
+using System.Runtime.InteropServices;
+
+namespace DragonOS.AudioConfigurator.Core.Interop;
+
+// ============================================================================
+// IAudioPolicyConfigFactory — Undocumented Windows COM Interface
+//
+// WARNING: This interface is NOT part of the public Windows SDK. It was
+// reverse-engineered from AudioSes.dll and is subject to change in future
+// Windows builds without notice. It has remained stable from Windows 10 1607
+// through Windows 11 24H2 (as of the project's knowledge cutoff).
+//
+// CANONICAL OPEN-SOURCE REFERENCE:
+//   EarTrumpet by File-New-Project
+//   https://github.com/File-New-Project/EarTrumpet
+//   Specifically: EarTrumpet/DataModel/Audio/Internals/PolicyConfig.cs
+//
+// If you encounter access violations or E_NOINTERFACE on a newer Windows build,
+// validate the vtable layout against the current EarTrumpet source before filing
+// a bug against this project.
+//
+// HOW IT WORKS:
+//   Windows 10 Anniversary Update (1607) introduced the "App volume and device
+//   preferences" panel (ms-settings:apps-volume). The backing COM interface,
+//   IAudioPolicyConfigFactory, exposes SetPersistedDefaultAudioEndpoint — which
+//   writes a per-process audio endpoint preference to an internal Windows Audio
+//   policy store. This is what Windows itself uses when you change an app's
+//   output device in the Settings UI.
+//
+// WHY NOT IPolicyConfig?
+//   IPolicyConfig (a different, older undocumented interface) changes the
+//   SYSTEM-WIDE default audio device — affecting every running application.
+//   IAudioPolicyConfigFactory targets a specific process by PID.
+//
+// ============================================================================
+
+/// <summary>
+/// The undocumented COM interface that backs Windows 10/11 per-application audio
+/// endpoint routing ("App volume and device preferences" in Windows Settings).
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Interface GUID:</b> <c>{2a59116d-6c4f-45e0-a74f-707e3fef9258}</c>
+/// </para>
+/// <para>
+/// <b>Class GUID:</b> <c>{870af99c-171d-4f9e-af0d-e63df40c2bc9}</c> (<c>CPolicyConfigClient</c>)
+/// </para>
+/// <para>
+/// <b>Vtable layout:</b> Offsets 0–9 are internal Windows audio policy methods that
+/// are not useful to callers. They are declared here as <c>__vtbl_pad_N</c> stubs
+/// because the COM vtable is positional — every slot must be accounted for, or
+/// subsequent method calls will invoke the wrong function pointer and crash the process.
+/// </para>
+/// <para>
+/// <b>String parameter type:</b> Device IDs are passed as HSTRING (Windows Runtime
+/// string handles) rather than raw LPWSTR. Lifetime is managed explicitly via
+/// <see cref="NativeInterop.WindowsCreateString"/> and <see cref="NativeInterop.WindowsDeleteString"/>.
+/// </para>
+/// </remarks>
+[ComImport]
+[Guid("2a59116d-6c4f-45e0-a74f-707e3fef9258")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IAudioPolicyConfigFactory
+{
+    // -------------------------------------------------------------------------
+    // Vtable offsets 0–9: Internal Windows audio policy event registrations
+    // and container management methods. These are not useful to callers of
+    // the per-app routing API. Each stub must be declared to preserve the
+    // vtable offset of GetPersistedDefaultAudioEndpoint (offset 10) and
+    // SetPersistedDefaultAudioEndpoint (offset 11).
+    // -------------------------------------------------------------------------
+#pragma warning disable IDE1006 // Naming convention — intentional vtable padding names.
+
+    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
+    [PreserveSig] int __vtbl_pad_0();  // add_CtxVolumeChange
+
+    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
+    [PreserveSig] int __vtbl_pad_1();  // remove_CtxVolumeChange
+
+    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
+    [PreserveSig] int __vtbl_pad_2();  // add_RingerVibrateStateChanged
+
+    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
+    [PreserveSig] int __vtbl_pad_3();  // remove_RingerVibrateStateChanged
+
+    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
+    [PreserveSig] int __vtbl_pad_4();  // GetTelemetryId
+
+    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
+    [PreserveSig] int __vtbl_pad_5();  // SetTelemetryId
+
+    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
+    [PreserveSig] int __vtbl_pad_6();  // GetContainerCount
+
+    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
+    [PreserveSig] int __vtbl_pad_7();  // GetContainer
+
+    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
+    [PreserveSig] int __vtbl_pad_8();  // GetContainerAudioDeviceId
+
+    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
+    [PreserveSig] int __vtbl_pad_9();  // SetContainerAudioDeviceId
+
+#pragma warning restore IDE1006
+
+    // -------------------------------------------------------------------------
+    // Vtable offset 10: GetPersistedDefaultAudioEndpoint
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads the persisted per-process audio endpoint preference for the given process.
+    /// </summary>
+    /// <param name="processId">
+    /// The Win32 process ID of the target application. Obtain from
+    /// <see cref="System.Diagnostics.Process.Id"/>.
+    /// </param>
+    /// <param name="flow">
+    /// The data-flow direction. Use <see cref="EDataFlow.eRender"/> for audio output.
+    /// </param>
+    /// <param name="role">
+    /// The endpoint role. Use <see cref="ERole.eMultimedia"/> for music/media applications.
+    /// </param>
+    /// <param name="hstringDeviceId">
+    /// Receives an HSTRING handle containing the endpoint ID string.
+    /// The caller must release this with <see cref="NativeInterop.WindowsDeleteString"/>.
+    /// Returns <see cref="IntPtr.Zero"/> if no preference has been set for this process.
+    /// </param>
+    /// <returns>
+    /// S_OK (0) on success. E_NOTIMPL or a negative HRESULT if the Windows build does
+    /// not support per-process routing (pre-1607) or if the vtable is misaligned.
+    /// </returns>
+    [PreserveSig]
+    int GetPersistedDefaultAudioEndpoint(
+        uint processId,
+        EDataFlow flow,
+        ERole role,
+        out IntPtr hstringDeviceId);
+
+    // -------------------------------------------------------------------------
+    // Vtable offset 11: SetPersistedDefaultAudioEndpoint  ← THE KEY METHOD
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Writes a per-process audio endpoint preference for the given process.
+    /// This is the exact mechanism Windows Settings uses internally when the user
+    /// selects a different output device in "App volume and device preferences".
+    /// </summary>
+    /// <param name="processId">
+    /// The Win32 process ID of the target application.
+    /// For applications that spawn multiple processes (Electron, CEF), call this
+    /// method once per process ID to ensure all audio sessions are routed.
+    /// </param>
+    /// <param name="flow">
+    /// Use <see cref="EDataFlow.eRender"/> to route the application's audio output.
+    /// </param>
+    /// <param name="role">
+    /// Use <see cref="ERole.eMultimedia"/> for music/media playback applications.
+    /// Use <see cref="ERole.eCommunications"/> additionally for VoIP applications.
+    /// </param>
+    /// <param name="hstringDeviceId">
+    /// An HSTRING handle wrapping the target endpoint's ID string.
+    /// Create this with <see cref="NativeInterop.WindowsCreateString"/> and release
+    /// with <see cref="NativeInterop.WindowsDeleteString"/> after this call returns.
+    /// The endpoint ID must be obtained from <c>IMMDevice::GetId</c> — never fabricated.
+    /// </param>
+    /// <returns>
+    /// S_OK (0) on success.
+    /// E_INVALIDARG if the device ID is invalid or the process does not exist.
+    /// A negative HRESULT if the vtable is misaligned (indicates a Windows build change).
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Effect timing:</b> The preference is written immediately but the running
+    /// application may not switch its audio stream until it opens a new audio session.
+    /// Spotify, for example, honours the new endpoint on the next track transition
+    /// or after a restart.
+    /// </para>
+    /// <para>
+    /// <b>Persistence:</b> The preference survives process restarts and is stored per
+    /// application executable path in the Windows audio policy store.
+    /// </para>
+    /// </remarks>
+    [PreserveSig]
+    int SetPersistedDefaultAudioEndpoint(
+        uint processId,
+        EDataFlow flow,
+        ERole role,
+        IntPtr hstringDeviceId);
+}
+
+/// <summary>
+/// The concrete COM class that implements <see cref="IAudioPolicyConfigFactory"/>.
+/// Activate with <c>new AudioPolicyConfigFactoryComObject()</c> then cast to
+/// <see cref="IAudioPolicyConfigFactory"/>.
+/// </summary>
+/// <remarks>
+/// CLSID: <c>{870af99c-171d-4f9e-af0d-e63df40c2bc9}</c> (<c>CPolicyConfigClient</c> in AudioSes.dll)
+/// </remarks>
+[ComImport]
+[Guid("870af99c-171d-4f9e-af0d-e63df40c2bc9")]
+[ClassInterface(ClassInterfaceType.None)]
+internal class AudioPolicyConfigFactoryComObject { }

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Target .NET 8 without platform restriction — the Core library is platform-agnostic
+         and carries no WPF or Windows-specific SDK references. Platform-specific P/Invoke
+         calls are isolated in the Interop layer and guarded at runtime. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+
+    <!-- Emit an XML documentation file so IntelliSense surfaces summaries in downstream
+         projects and the docs can be published alongside the NuGet package. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\DragonOS.AudioConfigurator.Core.xml</DocumentationFile>
+
+    <!-- Treat missing XML doc comments as warnings, not errors, so community
+         contributors are nudged rather than blocked. -->
+    <NoWarn>$(NoWarn);1591</NoWarn>
+
+    <PackageId>DragonOS.AudioConfigurator.Core</PackageId>
+    <Authors>Dragon OS Contributors</Authors>
+    <Description>
+      Platform services for the Dragon OS Audio Configurator: COM interop with the
+      Windows Core Audio API (IMMDeviceEnumerator, IAudioPolicyConfigFactory),
+      VB-Cable driver acquisition, and per-application audio routing.
+    </Description>
+    <RepositoryUrl>https://github.com/your-org/DragonOS.AudioConfigurator</RepositoryUrl>
+  </PropertyGroup>
+
+</Project>

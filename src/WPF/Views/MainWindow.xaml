@@ -1,0 +1,265 @@
+<Window x:Class="DragonOS.AudioConfigurator.WPF.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:DragonOS.AudioConfigurator.WPF.ViewModels"
+        xmlns:local="clr-namespace:DragonOS.AudioConfigurator.WPF.Views"
+        Title="Dragon OS Audio Configurator"
+        Width="560" Height="480"
+        MinWidth="560" MinHeight="480"
+        ResizeMode="CanMinimize"
+        WindowStartupLocation="CenterScreen"
+        Background="#0F0F1A"
+        FontFamily="Segoe UI"
+        FontSize="13">
+
+    <Window.Resources>
+
+        <!-- ================================================================
+            Colour palette
+        ================================================================ -->
+        <SolidColorBrush x:Key="BrushBackground"    Color="#0F0F1A"/>
+        <SolidColorBrush x:Key="BrushSurface"       Color="#1A1A2E"/>
+        <SolidColorBrush x:Key="BrushBorder"        Color="#2A2A4A"/>
+        <SolidColorBrush x:Key="BrushTextPrimary"   Color="#E8E8F0"/>
+        <SolidColorBrush x:Key="BrushTextSecondary" Color="#8888AA"/>
+        <SolidColorBrush x:Key="BrushAccent"        Color="#E94560"/>
+        <SolidColorBrush x:Key="BrushSuccess"       Color="#00C853"/>
+        <SolidColorBrush x:Key="BrushWarning"       Color="#FFD740"/>
+        <SolidColorBrush x:Key="BrushError"         Color="#FF1744"/>
+        <SolidColorBrush x:Key="BrushPending"       Color="#44445A"/>
+        <SolidColorBrush x:Key="BrushInProgress"    Color="#FFD740"/>
+
+        <!-- ================================================================
+            Step item DataTemplate
+            Bound to StepViewModel. DataTriggers switch icon colour and
+            progress bar visibility based on StepStatus.
+        ================================================================ -->
+        <DataTemplate DataType="{x:Type vm:StepViewModel}">
+            <Border Background="{StaticResource BrushSurface}"
+                    BorderBrush="{StaticResource BrushBorder}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Margin="0,0,0,8"
+                    Padding="16,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="28"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Status icon -->
+                    <TextBlock x:Name="IconText"
+                               Grid.Column="0" Grid.Row="0" Grid.RowSpan="2"
+                               Text="{Binding StatusIcon}"
+                               FontSize="18"
+                               FontWeight="Bold"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource BrushPending}"
+                               Margin="0,0,8,0"/>
+
+                    <!-- Step name -->
+                    <TextBlock Grid.Column="1" Grid.Row="0"
+                               Text="{Binding Name}"
+                               FontWeight="SemiBold"
+                               FontSize="13.5"
+                               Foreground="{StaticResource BrushTextPrimary}"/>
+
+                    <!-- Step detail / progress message -->
+                    <TextBlock Grid.Column="1" Grid.Row="1"
+                               Text="{Binding Detail, FallbackValue={Binding Description}}"
+                               FontSize="11.5"
+                               Foreground="{StaticResource BrushTextSecondary}"
+                               TextWrapping="Wrap"
+                               Margin="0,2,0,0"
+                               Visibility="{Binding Detail, Converter={StaticResource NullToCollapsedConverter}}"/>
+
+                    <!-- Description shown only when Detail is null (pending state) -->
+                    <TextBlock Grid.Column="1" Grid.Row="1"
+                               Text="{Binding Description}"
+                               FontSize="11.5"
+                               Foreground="{StaticResource BrushPending}"
+                               TextWrapping="Wrap"
+                               Margin="0,2,0,0"
+                               Visibility="{Binding Detail, Converter={StaticResource NullToVisibleConverter}}"/>
+
+                    <!-- Progress bar — visible only during InProgress state -->
+                    <ProgressBar x:Name="StepProgressBar"
+                                 Grid.Column="1" Grid.Row="2"
+                                 Height="3"
+                                 Margin="0,6,0,0"
+                                 Minimum="0" Maximum="100"
+                                 Value="{Binding ProgressPercent}"
+                                 IsIndeterminate="{Binding IsProgressIndeterminate}"
+                                 Visibility="Collapsed"
+                                 Foreground="{StaticResource BrushAccent}"
+                                 Background="{StaticResource BrushBorder}"/>
+                </Grid>
+
+                <!-- DataTriggers: switch icon colour and progress bar visibility by status -->
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Status}" Value="InProgress">
+                                <Setter Property="BorderBrush" Value="{StaticResource BrushAccent}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Status}" Value="Succeeded">
+                                <Setter Property="BorderBrush" Value="{StaticResource BrushSuccess}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Status}" Value="Failed">
+                                <Setter Property="BorderBrush" Value="{StaticResource BrushError}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+
+                <Border.Triggers>
+                    <EventTrigger RoutedEvent="Loaded"/>
+                </Border.Triggers>
+            </Border>
+
+            <!-- Icon colour DataTriggers via style on the TextBlock -->
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Status}" Value="InProgress">
+                    <Setter TargetName="IconText"          Property="Foreground" Value="{StaticResource BrushInProgress}"/>
+                    <Setter TargetName="StepProgressBar"   Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Succeeded">
+                    <Setter TargetName="IconText" Property="Foreground" Value="{StaticResource BrushSuccess}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Failed">
+                    <Setter TargetName="IconText" Property="Foreground" Value="{StaticResource BrushError}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Skipped">
+                    <Setter TargetName="IconText" Property="Foreground" Value="{StaticResource BrushTextSecondary}"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- ================================================================
+            Configure button style
+        ================================================================ -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background"   Value="{StaticResource BrushAccent}"/>
+            <Setter Property="Foreground"   Value="White"/>
+            <Setter Property="FontSize"     Value="14"/>
+            <Setter Property="FontWeight"   Value="SemiBold"/>
+            <Setter Property="Padding"      Value="32,10"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor"       Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#FF1040"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrushBorder}"/>
+                                <Setter Property="Foreground" Value="{StaticResource BrushTextSecondary}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#CC0030"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ================================================================
+            Value converters (inline, no external converter classes needed)
+        ================================================================ -->
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+
+        <!-- Null/empty string to Visibility converters — instantiated here so
+             StaticResource references in the DataTemplate resolve at parse time. -->
+        <local:NullToCollapsedConverter x:Key="NullToCollapsedConverter"/>
+        <local:NullToVisibleConverter   x:Key="NullToVisibleConverter"/>
+
+    </Window.Resources>
+
+    <!-- ================================================================
+        Root layout
+    ================================================================ -->
+    <Grid Background="{StaticResource BrushBackground}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- Header -->
+            <RowDefinition Height="*"/>     <!-- Step list -->
+            <RowDefinition Height="Auto"/>  <!-- Status bar -->
+            <RowDefinition Height="Auto"/>  <!-- Action button -->
+        </Grid.RowDefinitions>
+
+        <!-- ---- Header --------------------------------------------------------- -->
+        <Border Grid.Row="0"
+                Background="{StaticResource BrushSurface}"
+                BorderBrush="{StaticResource BrushBorder}"
+                BorderThickness="0,0,0,1"
+                Padding="24,16">
+            <StackPanel>
+                <TextBlock Text="DRAGON OS"
+                           FontSize="11"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource BrushAccent}"/>
+                <TextBlock Text="Audio Configurator"
+                           FontSize="20"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource BrushTextPrimary}"
+                           Margin="0,2,0,0"/>
+                <TextBlock Text="Routes Spotify audio to VB-Cable for OBS capture."
+                           FontSize="11.5"
+                           Foreground="{StaticResource BrushTextSecondary}"
+                           Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ---- Step list ------------------------------------------------------ -->
+        <ScrollViewer Grid.Row="1"
+                      Padding="24,20,24,0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding Steps}"/>
+        </ScrollViewer>
+
+        <!-- ---- Status message -------------------------------------------------- -->
+        <Border Grid.Row="2" Padding="24,10,24,4">
+            <TextBlock Text="{Binding StatusMessage}"
+                       FontSize="11.5"
+                       Foreground="{StaticResource BrushTextSecondary}"
+                       TextWrapping="Wrap"
+                       TextTrimming="None"/>
+        </Border>
+
+        <!-- ---- Success banner -------------------------------------------------- -->
+        <Border Grid.Row="2"
+                Background="#1A3A1A"
+                BorderBrush="{StaticResource BrushSuccess}"
+                BorderThickness="0,1,0,0"
+                Padding="24,10"
+                Visibility="{Binding Succeeded, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="✓  Audio matrix configured. Spotify is now routed to CABLE Input."
+                       Foreground="{StaticResource BrushSuccess}"
+                       FontSize="12"
+                       FontWeight="SemiBold"/>
+        </Border>
+
+        <!-- ---- Action button --------------------------------------------------- -->
+        <Border Grid.Row="3" Padding="24,12,24,20">
+            <Button Style="{StaticResource PrimaryButtonStyle}"
+                    Command="{Binding ConfigureCommand}"
+                    HorizontalAlignment="Stretch"
+                    Content="Configure Audio"/>
+        </Border>
+    </Grid>
+</Window>

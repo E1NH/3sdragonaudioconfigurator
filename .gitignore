@@ -1,0 +1,38 @@
+# ============================================================
+# Dragon OS Audio Configurator — .gitignore
+# ============================================================
+
+# Build outputs
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+publish/
+*.user
+*.suo
+.vs/
+.vscode/
+
+# .NET / MSBuild
+project.lock.json
+project.assets.json
+*.nupkg
+*.snupkg
+*.nuspec
+
+# Rider
+.idea/
+*.sln.iml
+
+# Test results
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Publish profiles
+**/Properties/PublishProfiles/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
