@@ -157,12 +157,45 @@ public sealed class AudioRouterService : IAudioRouterService
                     "Ensure the application is launched before running the audio configurator.");
             }
 
-            // Instantiate the policy config factory.
-            // This is the COM class that backs Windows "App volume and device preferences".
-            var factoryObj = new AudioPolicyConfigFactoryComObject();
-            var factory    = (IAudioPolicyConfigFactory)factoryObj;
+            // Instantiate the policy config factory — version-aware.
+            //
+            // The COM class {870af99c-171d-4f9e-af0d-e63df40c2bc9} (CPolicyConfigClient)
+            // exists on both Win10 and Win11 but exposes a DIFFERENT IID on each:
+            //   Win10: {2a59116d-6c4f-45e0-a74f-707e3fef9258}  (IAudioPolicyConfigFactory)
+            //   Win11: {ab3d4648-e242-459f-b02f-541c70306324}  (IAudioPolicyConfigFactoryWin11)
+            //
+            // We try CoCreateInstance + QI for the Win11 IID first (preferred path),
+            // falling back to RoGetActivationFactory if that QI returns E_NOINTERFACE.
+            bool isWin11 = Environment.OSVersion.Version.Build >= 21390;
+
+            Func<uint, EDataFlow, ERole, IntPtr, int> setEndpoint;
+
+            if (isWin11)
+            {
+                var comObj = new AudioPolicyConfigFactoryComObject();
+                IAudioPolicyConfigFactoryWin11? win11Factory = null;
+
+                try
+                {
+                    // Preferred: same CLSID, QI for the Win11 IID.
+                    win11Factory = (IAudioPolicyConfigFactoryWin11)comObj;
+                }
+                catch (InvalidCastException)
+                {
+                    // QI returned E_NOINTERFACE — fall back to WinRT activation.
+                    win11Factory = CreateWin11AudioPolicyFactory();
+                }
+
+                setEndpoint = win11Factory.SetPersistedDefaultAudioEndpoint;
+            }
+            else
+            {
+                setEndpoint = ((IAudioPolicyConfigFactory)new AudioPolicyConfigFactoryComObject())
+                                  .SetPersistedDefaultAudioEndpoint;
+            }
 
             int routedCount = 0;
+            var routeErrors = new List<string>(); // Accumulate per-PID errors for diagnostics.
 
             for (int i = 0; i < processes.Length; i++)
             {
@@ -175,7 +208,7 @@ public sealed class AudioRouterService : IAudioRouterService
                     progress?.Report(new ProgressReport(
                         $"Routing PID {proc.Id} ({processName}) → CABLE Input...", pct));
 
-                    var routeResult = RouteProcess(factory, (uint)proc.Id, targetDeviceId);
+                    var routeResult = RouteProcess(setEndpoint, (uint)proc.Id, targetDeviceId);
 
                     if (routeResult.IsSuccess)
                     {
@@ -183,9 +216,7 @@ public sealed class AudioRouterService : IAudioRouterService
                     }
                     else
                     {
-                        // Non-fatal per-process failure: log and continue rather than aborting.
-                        // Some Spotify child processes (e.g. crash-handler) may legitimately
-                        // reject the routing call.
+                        routeErrors.Add($"PID {proc.Id}: {routeResult.ErrorMessage}");
                         System.Diagnostics.Debug.WriteLine(
                             $"[AudioRouter] Skipped PID {proc.Id}: {routeResult.ErrorMessage}");
                     }
@@ -194,10 +225,13 @@ public sealed class AudioRouterService : IAudioRouterService
 
             if (routedCount == 0 && processes.Length > 0)
             {
+                // Surface the first error so the UI shows the actual HRESULT rather than
+                // a generic "build incompatibility" message — makes remote diagnosis possible.
+                string firstError = routeErrors.Count > 0 ? $" First error → {routeErrors[0]}" : string.Empty;
+                string iface      = isWin11 ? "Win11" : "Win10";
                 return OperationResult<int>.Failure(
-                    $"Found {processes.Length} '{processName}' process(es) but failed to route any of them. " +
-                    "This may indicate a Windows build incompatibility with IAudioPolicyConfigFactory. " +
-                    "Consult the EarTrumpet project for the latest vtable definition.");
+                    $"Found {processes.Length} '{processName}' process(es) but none could be routed " +
+                    $"(interface: {iface}).{firstError}");
             }
 
             progress?.Report(new ProgressReport(
@@ -226,19 +260,34 @@ public sealed class AudioRouterService : IAudioRouterService
     }
 
     /// <summary>
-    /// Calls <c>IAudioPolicyConfigFactory.SetPersistedDefaultAudioEndpoint</c> for a
-    /// single process ID.
+    /// Calls <c>SetPersistedDefaultAudioEndpoint</c> for a single process ID via the
+    /// supplied delegate, which abstracts over the Win10 and Win11 interface variants.
     /// </summary>
+    /// <param name="setEndpoint">
+    /// A delegate bound to either <c>IAudioPolicyConfigFactory.SetPersistedDefaultAudioEndpoint</c>
+    /// (Windows 10) or <c>IAudioPolicyConfigFactoryWin11.SetPersistedDefaultAudioEndpoint</c>
+    /// (Windows 11). The caller is responsible for creating and holding the factory alive
+    /// for the lifetime of this call — the delegate reference itself keeps the RCW rooted.
+    /// </param>
     /// <remarks>
     /// HSTRING lifetime is managed with a try/finally to guarantee that
     /// <see cref="NativeInterop.WindowsDeleteString"/> is called even if the COM method
     /// throws, preventing a Windows Runtime string handle leak.
     /// </remarks>
     private static OperationResult<Unit> RouteProcess(
-        IAudioPolicyConfigFactory factory,
+        Func<uint, EDataFlow, ERole, IntPtr, int> setEndpoint,
         uint processId,
         string deviceId)
     {
+        // 0x80070057 returned by SetPersistedDefaultAudioEndpoint means
+        // "PROCESS_NO_AUDIO": the process has no active audio session at this
+        // moment, but the routing preference HAS been written to the Windows
+        // audio policy store. It will take effect the next time the application
+        // opens an audio session (e.g. when Spotify next begins playback).
+        // Treat this as success — NOT as E_INVALIDARG.
+        // Reference: github.com/Belphemur/SoundSwitch — HRESULT.cs, PROCESS_NO_AUDIO
+        const int ProcessNoAudio = unchecked((int)0x80070057);
+
         IntPtr hstring = IntPtr.Zero;
 
         try
@@ -250,15 +299,24 @@ public sealed class AudioRouterService : IAudioRouterService
 
             NativeInterop.ThrowIfFailed(hr, "WindowsCreateString");
 
-            // This is the call that does the actual per-process audio routing.
-            hr = factory.SetPersistedDefaultAudioEndpoint(
-                processId,
-                EDataFlow.eRender,
-                ERole.eMultimedia,
-                hstring);
+            // Route for all three roles — Windows stores them as independent slots.
+            // Spotify (CEF) opens audio sessions against eConsole; eMultimedia is also
+            // set for completeness, matching what the Windows Settings UI does internally.
+            // eCommunications ensures future-proofing if Spotify ever uses that path.
+            ERole[] roles = [ERole.eConsole, ERole.eMultimedia, ERole.eCommunications];
 
-            NativeInterop.ThrowIfFailed(
-                hr, $"IAudioPolicyConfigFactory.SetPersistedDefaultAudioEndpoint (PID {processId})");
+            foreach (var role in roles)
+            {
+                hr = setEndpoint(processId, EDataFlow.eRender, role, hstring);
+
+                // S_OK (0) = active session routed immediately.
+                // PROCESS_NO_AUDIO = preference stored; session not yet open.
+                // Both are successful outcomes — continue to next role.
+                if (hr == ProcessNoAudio || hr == 0) continue;
+
+                NativeInterop.ThrowIfFailed(
+                    hr, $"SetPersistedDefaultAudioEndpoint (PID {processId}, role {role})");
+            }
 
             return OperationResult<Unit>.Success(Unit.Value);
         }
@@ -272,6 +330,52 @@ public sealed class AudioRouterService : IAudioRouterService
             // Always release the HSTRING handle — even if SetPersistedDefaultAudioEndpoint threw.
             if (hstring != IntPtr.Zero)
                 NativeInterop.WindowsDeleteString(hstring);
+        }
+    }
+
+    /// <summary>
+    /// Obtains the <see cref="IAudioPolicyConfigFactoryWin11"/> instance via
+    /// <c>RoGetActivationFactory("Windows.Media.Internal.AudioPolicyConfig")</c>.
+    /// </summary>
+    /// <remarks>
+    /// The raw COM pointer returned by <c>RoGetActivationFactory</c> is wrapped in a
+    /// managed RCW via <see cref="Marshal.GetObjectForIUnknown"/>, then the native
+    /// reference is released with <see cref="Marshal.Release"/>. The RCW keeps the
+    /// object alive for the lifetime of the returned interface reference.
+    /// </remarks>
+    /// <exception cref="COMException">
+    /// Thrown if <c>RoGetActivationFactory</c> returns a failure HRESULT — for example
+    /// if the Windows build does not recognise the activatable class name or IID.
+    /// </exception>
+    private static IAudioPolicyConfigFactoryWin11 CreateWin11AudioPolicyFactory()
+    {
+        const string ClassName = "Windows.Media.Internal.AudioPolicyConfig";
+        var iid = new Guid("ab3d4648-e242-459f-b02f-541c70306324");
+
+        IntPtr hstring    = IntPtr.Zero;
+        IntPtr factoryPtr = IntPtr.Zero;
+
+        try
+        {
+            int hr = NativeInterop.WindowsCreateString(
+                ClassName, (uint)ClassName.Length, out hstring);
+            NativeInterop.ThrowIfFailed(hr, "WindowsCreateString (AudioPolicyConfig)");
+
+            hr = NativeInterop.RoGetActivationFactory(hstring, ref iid, out factoryPtr);
+            NativeInterop.ThrowIfFailed(hr, "RoGetActivationFactory (IAudioPolicyConfigFactoryWin11)");
+
+            // Wrap the raw pointer in a managed RCW and cast to the typed interface.
+            // GetObjectForIUnknown AddRefs; we release the native ref below.
+            return (IAudioPolicyConfigFactoryWin11)Marshal.GetObjectForIUnknown(factoryPtr);
+        }
+        finally
+        {
+            if (hstring != IntPtr.Zero)
+                NativeInterop.WindowsDeleteString(hstring);
+
+            // Release the native ref from RoGetActivationFactory — the RCW holds its own.
+            if (factoryPtr != IntPtr.Zero)
+                Marshal.Release(factoryPtr);
         }
     }
 

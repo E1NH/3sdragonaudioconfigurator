@@ -30,6 +30,17 @@
         <SolidColorBrush x:Key="BrushInProgress"    Color="#FFD740"/>
 
         <!-- ================================================================
+            Value converters — declared here, ABOVE the DataTemplate that uses
+            them. WPF resolves StaticResource references sequentially within a
+            ResourceDictionary; a converter declared after the DataTemplate
+            causes StaticResourceHolder.ProvideValue to throw a
+            XamlParseException at the point the template is first instantiated.
+        ================================================================ -->
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+        <local:NullToCollapsedConverter x:Key="NullToCollapsedConverter"/>
+        <local:NullToVisibleConverter   x:Key="NullToVisibleConverter"/>
+
+        <!-- ================================================================
             Step item DataTemplate
             Bound to StepViewModel. DataTriggers switch icon colour and
             progress bar visibility based on StepStatus.
@@ -69,9 +80,9 @@
                                FontSize="13.5"
                                Foreground="{StaticResource BrushTextPrimary}"/>
 
-                    <!-- Step detail / progress message -->
+                    <!-- Step detail / progress message — visible only when Detail is non-null -->
                     <TextBlock Grid.Column="1" Grid.Row="1"
-                               Text="{Binding Detail, FallbackValue={Binding Description}}"
+                               Text="{Binding Detail}"
                                FontSize="11.5"
                                Foreground="{StaticResource BrushTextSecondary}"
                                TextWrapping="Wrap"
@@ -178,16 +189,6 @@
             </Setter>
         </Style>
 
-        <!-- ================================================================
-            Value converters (inline, no external converter classes needed)
-        ================================================================ -->
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
-
-        <!-- Null/empty string to Visibility converters — instantiated here so
-             StaticResource references in the DataTemplate resolve at parse time. -->
-        <local:NullToCollapsedConverter x:Key="NullToCollapsedConverter"/>
-        <local:NullToVisibleConverter   x:Key="NullToVisibleConverter"/>
-
     </Window.Resources>
 
     <!-- ================================================================
@@ -201,7 +202,7 @@
             <RowDefinition Height="Auto"/>  <!-- Action button -->
         </Grid.RowDefinitions>
 
-        <!-- ---- Header --------------------------------------------------------- -->
+        <!-- Header -->
         <Border Grid.Row="0"
                 Background="{StaticResource BrushSurface}"
                 BorderBrush="{StaticResource BrushBorder}"
@@ -224,7 +225,7 @@
             </StackPanel>
         </Border>
 
-        <!-- ---- Step list ------------------------------------------------------ -->
+        <!-- Step list -->
         <ScrollViewer Grid.Row="1"
                       Padding="24,20,24,0"
                       VerticalScrollBarVisibility="Auto"
@@ -232,7 +233,7 @@
             <ItemsControl ItemsSource="{Binding Steps}"/>
         </ScrollViewer>
 
-        <!-- ---- Status message -------------------------------------------------- -->
+        <!-- Status message -->
         <Border Grid.Row="2" Padding="24,10,24,4">
             <TextBlock Text="{Binding StatusMessage}"
                        FontSize="11.5"
@@ -241,25 +242,32 @@
                        TextTrimming="None"/>
         </Border>
 
-        <!-- ---- Success banner -------------------------------------------------- -->
+        <!-- Success banner -->
         <Border Grid.Row="2"
                 Background="#1A3A1A"
                 BorderBrush="{StaticResource BrushSuccess}"
                 BorderThickness="0,1,0,0"
                 Padding="24,10"
                 Visibility="{Binding Succeeded, Converter={StaticResource BoolToVisibility}}">
-            <TextBlock Text="✓  Audio matrix configured. Spotify is now routed to CABLE Input."
-                       Foreground="{StaticResource BrushSuccess}"
-                       FontSize="12"
-                       FontWeight="SemiBold"/>
+            <StackPanel>
+                <TextBlock Text="✓  Audio matrix configured. Spotify is now routed to CABLE Input."
+                           Foreground="{StaticResource BrushSuccess}"
+                           FontSize="12"
+                           FontWeight="SemiBold"/>
+                <TextBlock Text="Restart Spotify to activate the new routing."
+                           Foreground="{StaticResource BrushSuccess}"
+                           FontSize="11"
+                           Margin="0,3,0,0"
+                           Opacity="0.75"/>
+            </StackPanel>
         </Border>
 
-        <!-- ---- Action button --------------------------------------------------- -->
+        <!-- Action button -->
         <Border Grid.Row="3" Padding="24,12,24,20">
             <Button Style="{StaticResource PrimaryButtonStyle}"
                     Command="{Binding ConfigureCommand}"
                     HorizontalAlignment="Stretch"
-                    Content="Configure Audio"/>
+                    Content="{Binding ButtonLabel}"/>
         </Border>
     </Grid>
 </Window>

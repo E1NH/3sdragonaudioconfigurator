@@ -73,8 +73,33 @@ public sealed class MainViewModel : BaseViewModel
     public bool Succeeded
     {
         get => _succeeded;
-        private set => SetField(ref _succeeded, value);
+        private set
+        {
+            if (SetField(ref _succeeded, value))
+                OnPropertyChanged(nameof(ButtonLabel));
+        }
     }
+
+    private bool _hasPreviousFailure;
+
+    /// <summary>
+    /// <see langword="true"/> after at least one failed pipeline run.
+    /// Drives the "Retry" label on the action button.
+    /// </summary>
+    public bool HasPreviousFailure
+    {
+        get => _hasPreviousFailure;
+        private set
+        {
+            if (SetField(ref _hasPreviousFailure, value))
+                OnPropertyChanged(nameof(ButtonLabel));
+        }
+    }
+
+    /// <summary>
+    /// Label for the action button — "Retry" after a failed run, "Configure Audio" otherwise.
+    /// </summary>
+    public string ButtonLabel => _hasPreviousFailure ? "Retry" : "Configure Audio";
 
     private string _statusMessage = "Ready. Click 'Configure Audio' to begin.";
 
@@ -138,7 +163,7 @@ public sealed class MainViewModel : BaseViewModel
         // Initialise the step list. Order matches the pipeline execution sequence.
         _stepSpotify = new StepViewModel(
             "Check Spotify",
-            "Verifies Spotify is installed; installs it via winget if absent.");
+            "Verifies Spotify is installed. Install from spotify.com if not found.");
 
         _stepVbCable = new StepViewModel(
             "Install VB-Cable Driver",
@@ -162,7 +187,7 @@ public sealed class MainViewModel : BaseViewModel
 
         ConfigureCommand = new RelayCommand(
             execute:    () => _ = RunPipelineAsync(),
-            canExecute: () => !IsRunning && !IsComplete);
+            canExecute: () => !IsRunning && !Succeeded); // re-enabled after failure so user can retry
     }
 
     // -------------------------------------------------------------------------
@@ -275,6 +300,9 @@ public sealed class MainViewModel : BaseViewModel
         {
             IsRunning  = false;
             IsComplete = true;
+            // Mark failure so the button label flips to "Retry" and CanExecute re-evaluates.
+            if (!Succeeded)
+                Dispatch(() => HasPreviousFailure = true);
         }
     }
 

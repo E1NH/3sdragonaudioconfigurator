@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <!-- net8.0-windows is required for WPF and Windows-specific COM interop. -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
@@ -14,11 +14,12 @@
 
     <AssemblyName>DragonOS.AudioConfigurator</AssemblyName>
     <RootNamespace>DragonOS.AudioConfigurator.WPF</RootNamespace>
-    <ApplicationIcon>Resources\dragon.ico</ApplicationIcon>
 
     <!-- Publish as single-file self-contained exe for GitHub release distribution. -->
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
+    <!-- Single-file packaging disabled: the runtime extraction + elevation combo
+         triggers Windows Defender heuristics on first launch regardless of flags.
+         Shipping as a folder is cleaner, faster to start, and Defender-transparent. -->
+    <SelfContained>false</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
 
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

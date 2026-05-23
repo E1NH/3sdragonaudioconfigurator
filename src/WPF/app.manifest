@@ -14,7 +14,11 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <requestedExecutionLevel level="requireAdministrator" uiAccess="false"/>
+        <!-- Elevation is handled programmatically via self-relaunch with runas verb.
+             Manifest-level requireAdministrator causes silent termination on single-file
+             WPF builds because Defender kills the elevated extraction process before
+             the .NET runtime initialises. asInvoker here, admin enforced in App.xaml.cs. -->
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
       </requestedPrivileges>
     </security>
   </trustInfo>

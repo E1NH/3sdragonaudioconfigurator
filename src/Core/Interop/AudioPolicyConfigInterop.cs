@@ -200,3 +200,154 @@ internal interface IAudioPolicyConfigFactory
 [Guid("870af99c-171d-4f9e-af0d-e63df40c2bc9")]
 [ClassInterface(ClassInterfaceType.None)]
 internal class AudioPolicyConfigFactoryComObject { }
+
+// ============================================================================
+// IAudioPolicyConfigFactoryWin11 — Windows 11 21H2+ (build >= 21390)
+//
+// Windows 11 ships a revised interface with additional volume-group and chat-
+// application methods inserted before SetPersistedDefaultAudioEndpoint, pushing
+// it from vtable offset 11 (Win10) to offset 25 (Win11, after IInspectable base).
+//
+// ACTIVATION: RoGetActivationFactory("Windows.Media.Internal.AudioPolicyConfig")
+//   instead of CoCreateInstance(CLSID_CPolicyConfigClient).
+//
+// INTERFACE TYPE: InterfaceIsIInspectable
+//   The CLR implicitly handles the six IUnknown + IInspectable slots
+//   (QueryInterface, AddRef, Release, GetIids, GetRuntimeClassName, GetTrustLevel).
+//   The methods declared below begin at the next vtable slot after those six.
+//
+// VTABLE (relative to IInspectable base, i.e. after the 6 implicit slots):
+//   Offset  0: add_CtxVolumeChange
+//   Offset  1: remove_CtxVolumeChange
+//   Offset  2: add_RingerVibrateStateChanged
+//   Offset  3: remove_RingerVibrateStateChanged
+//   Offset  4: SetVolumeGroupGainForId         (Win11 new)
+//   Offset  5: GetVolumeGroupGainForId         (Win11 new)
+//   Offset  6: GetActiveVolumeGroupForEndpointId (Win11 new)
+//   Offset  7: GetVolumeGroupsForEndpoint       (Win11 new)
+//   Offset  8: GetCurrentVolumeContext          (Win11 new)
+//   Offset  9: SetVolumeGroupMuteForId          (Win11 new)
+//   Offset 10: GetVolumeGroupMuteForId          (Win11 new)
+//   Offset 11: SetRingerVibrateState            (Win11 new)
+//   Offset 12: GetRingerVibrateState            (Win11 new)
+//   Offset 13: SetPreferredChatApplication      (Win11 new)
+//   Offset 14: ResetPreferredChatApplication    (Win11 new)
+//   Offset 15: GetPreferredChatApplication      (Win11 new)
+//   Offset 16: GetCurrentChatApplications       (Win11 new)
+//   Offset 17: add_ChatContextChanged           (Win11 new)
+//   Offset 18: remove_ChatContextChanged        (Win11 new)
+//   Offset 19: SetPersistedDefaultAudioEndpoint ← KEY METHOD (NOTE: Set before Get, reversed from Win10)
+//   Offset 20: GetPersistedDefaultAudioEndpoint
+//   Offset 21: ClearAllPersistedApplicationDefaultEndpoints
+//
+// SOURCE REFERENCE:
+//   SoundSwitch: https://github.com/Belphemur/SoundSwitch (AudioPolicyConfig.cs)
+//   EarTrumpet:  https://github.com/File-New-Project/EarTrumpet (PolicyConfig.cs)
+// ============================================================================
+
+/// <summary>
+/// The Windows 11 (build 21390+) revision of the per-application audio policy
+/// factory interface. Obtained via WinRT activation — see
+/// <see cref="AudioRouterService"/> for usage.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Interface GUID:</b> <c>{ab3d4648-e242-459f-b02f-541c70306324}</c>
+/// </para>
+/// <para>
+/// <b>InterfaceType:</b> Declared as <c>InterfaceIsIUnknown</c> (not IInspectable)
+/// because <c>ComInterfaceType.InterfaceIsIInspectable</c> is unsupported in .NET Core /
+/// .NET 5+. The three IInspectable slots (GetIids, GetRuntimeClassName, GetTrustLevel)
+/// are therefore declared explicitly as vtable padding at offsets 3–5.
+/// </para>
+/// <para>
+/// <b>Key difference from Win10:</b> <c>SetPersistedDefaultAudioEndpoint</c> and
+/// <c>GetPersistedDefaultAudioEndpoint</c> have their order swapped compared to the
+/// Windows 10 interface; Set now precedes Get.
+/// </para>
+/// </remarks>
+[ComImport]
+[Guid("ab3d4648-e242-459f-b02f-541c70306324")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IAudioPolicyConfigFactoryWin11
+{
+    // 22 vtable padding slots total — must all be declared to preserve positional correctness.
+    //
+    // Absolute vtable layout (CLR owns slots 0–2 for IUnknown):
+    //   Slot  3: GetIids             (IInspectable)
+    //   Slot  4: GetRuntimeClassName (IInspectable)
+    //   Slot  5: GetTrustLevel       (IInspectable)
+    //   Slots 6–24: Win11 audio policy application methods (see comment block above)
+    //   Slot 25: SetPersistedDefaultAudioEndpoint  ← KEY METHOD
+    //   Slot 26: GetPersistedDefaultAudioEndpoint
+    //   Slot 27: ClearAllPersistedApplicationDefaultEndpoints
+#pragma warning disable IDE1006
+
+    // IInspectable slots (3–5) — not handled by the CLR when InterfaceIsIUnknown is used.
+    [PreserveSig] int __pad_GetIids();
+    [PreserveSig] int __pad_GetRuntimeClassName();
+    [PreserveSig] int __pad_GetTrustLevel();
+
+    // Win11 audio policy application methods (slots 6–24).
+    [PreserveSig] int __pad_add_CtxVolumeChange();
+    [PreserveSig] int __pad_remove_CtxVolumeChange();
+    [PreserveSig] int __pad_add_RingerVibrateStateChanged();
+    [PreserveSig] int __pad_remove_RingerVibrateStateChanged();
+    [PreserveSig] int __pad_SetVolumeGroupGainForId();
+    [PreserveSig] int __pad_GetVolumeGroupGainForId();
+    [PreserveSig] int __pad_GetActiveVolumeGroupForEndpointId();
+    [PreserveSig] int __pad_GetVolumeGroupsForEndpoint();
+    [PreserveSig] int __pad_GetCurrentVolumeContext();
+    [PreserveSig] int __pad_SetVolumeGroupMuteForId();
+    [PreserveSig] int __pad_GetVolumeGroupMuteForId();
+    [PreserveSig] int __pad_SetRingerVibrateState();
+    [PreserveSig] int __pad_GetRingerVibrateState();
+    [PreserveSig] int __pad_SetPreferredChatApplication();
+    [PreserveSig] int __pad_ResetPreferredChatApplication();
+    [PreserveSig] int __pad_GetPreferredChatApplication();
+    [PreserveSig] int __pad_GetCurrentChatApplications();
+    [PreserveSig] int __pad_add_ChatContextChanged();
+    [PreserveSig] int __pad_remove_ChatContextChanged();
+
+#pragma warning restore IDE1006
+
+    // -------------------------------------------------------------------------
+    // Vtable offset 19: SetPersistedDefaultAudioEndpoint  ← THE KEY METHOD
+    // NOTE: Set precedes Get on Win11 — reversed from Win10.
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Writes a per-process audio endpoint preference for the given process.
+    /// Semantics are identical to the Win10 counterpart.
+    /// </summary>
+    [PreserveSig]
+    int SetPersistedDefaultAudioEndpoint(
+        uint processId,
+        EDataFlow flow,
+        ERole role,
+        IntPtr hstringDeviceId);
+
+    // -------------------------------------------------------------------------
+    // Vtable offset 20: GetPersistedDefaultAudioEndpoint
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads the persisted per-process audio endpoint preference for the given process.
+    /// </summary>
+    [PreserveSig]
+    int GetPersistedDefaultAudioEndpoint(
+        uint processId,
+        EDataFlow flow,
+        ERole role,
+        out IntPtr hstringDeviceId);
+
+    // -------------------------------------------------------------------------
+    // Vtable offset 21: ClearAllPersistedApplicationDefaultEndpoints
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Resets all per-application audio endpoint preferences to the system default.
+    /// </summary>
+    [PreserveSig]
+    int ClearAllPersistedApplicationDefaultEndpoints();
+}

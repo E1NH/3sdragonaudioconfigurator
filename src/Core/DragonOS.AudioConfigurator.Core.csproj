@@ -4,7 +4,7 @@
     <!-- Target .NET 8 without platform restriction — the Core library is platform-agnostic
          and carries no WPF or Windows-specific SDK references. Platform-specific P/Invoke
          calls are isolated in the Interop layer and guarded at runtime. -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>

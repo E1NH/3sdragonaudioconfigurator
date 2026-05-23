@@ -48,16 +48,28 @@ public sealed class DependencyCheckService : IDependencyCheckService
     {
         try
         {
-            // 'winget list' exits 0 and emits the package row when a match is found.
-            // Exit code != 0 means not found or an error occurred.
-            // --accept-source-agreements suppresses the interactive EULA prompt
-            // that can appear on first winget use on a machine.
+            // Method 1: file-system paths — covers direct-download and winget installs.
+            // Reliable under UAC elevation: the elevated process inherits the original
+            // user's environment block so LOCALAPPDATA / APPDATA are correct.
+            if (IsSpotifyInstalledByPath())
+                return OperationResult<bool>.Success(true);
+
+            // Method 2: registry — covers installs that write the standard uninstall key.
+            if (IsSpotifyInstalledByRegistry())
+                return OperationResult<bool>.Success(true);
+
+            // Method 3: running process — if Spotify is open, it is obviously installed
+            // and we can route to it immediately without touching the filesystem.
+            if (IsSpotifyProcessRunning())
+                return OperationResult<bool>.Success(true);
+
+            // Method 4: winget as last resort. Running as admin, winget may not see
+            // user-scoped packages, so this is intentionally the slowest path.
             var (exitCode, output, _) = await RunProcessAsync(
                 "winget",
                 $"list --id {SpotifyWingetId} --accept-source-agreements",
                 cancellationToken);
 
-            // A double-check: winget may return 0 but emit an empty match list.
             bool isInstalled = exitCode == 0
                 && output.Contains(SpotifyWingetId, StringComparison.OrdinalIgnoreCase);
 
@@ -66,7 +78,7 @@ public sealed class DependencyCheckService : IDependencyCheckService
         catch (Exception ex)
         {
             return OperationResult<bool>.Failure(
-                $"Failed to query winget for Spotify installation status: {ex.Message}", ex);
+                $"Failed to query Spotify installation status: {ex.Message}", ex);
         }
     }
 
@@ -75,61 +87,78 @@ public sealed class DependencyCheckService : IDependencyCheckService
         IProgress<ProgressReport>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        // This step is a presence check only — the Dragon OS Audio Configurator is a
+        // routing tool for users who already have Spotify. Installing Spotify
+        // automatically is out of scope; if it is absent the user is directed to
+        // install it from the official source before re-running.
         try
         {
-            // Step 1: Confirm winget is present before attempting anything.
-            var wingetCheck = await IsWingetAvailableAsync(cancellationToken);
-            if (!wingetCheck.IsSuccess || !wingetCheck.Value)
-            {
+            progress?.Report(ProgressReport.Indeterminate("Checking for Spotify..."));
+
+            var check = await IsSpotifyInstalledAsync(cancellationToken);
+
+            if (!check.IsSuccess)
+                return OperationResult<Unit>.Failure(check.ErrorMessage!);
+
+            if (!check.Value)
                 return OperationResult<Unit>.Failure(
-                    "winget (Windows Package Manager) is not available on this machine. " +
-                    "Install it from the Microsoft Store (search for 'App Installer') and retry.");
-            }
+                    "Spotify was not found on this system. " +
+                    "Please install Spotify from https://www.spotify.com/download, " +
+                    "then re-run the configurator.");
 
-            // Step 2: Skip if Spotify is already installed.
-            var spotifyCheck = await IsSpotifyInstalledAsync(cancellationToken);
-            if (spotifyCheck.IsSuccess && spotifyCheck.Value)
-            {
-                progress?.Report(new ProgressReport("Spotify is already installed.", 100));
-                return OperationResult<Unit>.Success(Unit.Value);
-            }
-
-            // Step 3: Install Spotify silently.
-            // -h        = hidden (suppresses the installer UI window)
-            // --accept-source-agreements = suppresses EULA prompts
-            // --accept-package-agreements = suppresses per-package licence prompts
-            progress?.Report(ProgressReport.Indeterminate("Installing Spotify via winget..."));
-
-            var (exitCode, _, errorOutput) = await RunProcessAsync(
-                "winget",
-                $"install {SpotifyWingetId} -h " +
-                "--accept-source-agreements --accept-package-agreements",
-                cancellationToken);
-
-            if (exitCode != 0)
-            {
-                return OperationResult<Unit>.Failure(
-                    $"winget failed to install Spotify (exit code {exitCode}). " +
-                    $"Details: {errorOutput.Trim()}");
-            }
-
-            progress?.Report(new ProgressReport("Spotify installed successfully.", 100));
+            progress?.Report(new ProgressReport("Spotify is installed and ready.", 100));
             return OperationResult<Unit>.Success(Unit.Value);
         }
         catch (OperationCanceledException)
         {
-            throw; // Let cancellation propagate; it's not a failure.
+            throw;
         }
         catch (Exception ex)
         {
             return OperationResult<Unit>.Failure(
-                $"An unexpected error occurred while installing Spotify: {ex.Message}", ex);
+                $"Unexpected error while checking for Spotify: {ex.Message}", ex);
         }
     }
 
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Returns <see langword="true"/> if Spotify's executable is found at either
+    /// of its two known user-profile installation paths.
+    /// <list type="bullet">
+    ///   <item><description><c>%LOCALAPPDATA%\Spotify\Spotify.exe</c> — current default.</description></item>
+    ///   <item><description><c>%APPDATA%\Spotify\Spotify.exe</c> — used by older installers.</description></item>
+    /// </list>
+    /// </summary>
+    private static bool IsSpotifyInstalledByPath()
+    {
+        string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string appData      = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+
+        return File.Exists(Path.Combine(localAppData, "Spotify", "Spotify.exe"))
+            || File.Exists(Path.Combine(appData,      "Spotify", "Spotify.exe"));
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> if Spotify has written its standard uninstall
+    /// registry key under <c>HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Spotify</c>.
+    /// This key is present after both direct-download and winget installs.
+    /// </summary>
+    private static bool IsSpotifyInstalledByRegistry()
+    {
+        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+            @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Spotify");
+        return key is not null;
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> if at least one <c>Spotify.exe</c> process is
+    /// currently running. If Spotify is open, it is installed — no path lookup required.
+    /// </summary>
+    private static bool IsSpotifyProcessRunning()
+        => Process.GetProcessesByName("Spotify").Length > 0;
 
     /// <summary>
     /// Launches a process and waits for it to exit, capturing stdout and stderr.

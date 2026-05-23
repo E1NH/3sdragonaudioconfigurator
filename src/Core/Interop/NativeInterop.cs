@@ -53,6 +53,41 @@ internal static class NativeInterop
     internal static extern int WindowsDeleteString(IntPtr hstring);
 
     // -------------------------------------------------------------------------
+    // Windows Runtime activation factory (Windows 11 audio policy)
+    //
+    // Windows 11 (build 21390+) no longer exposes IAudioPolicyConfigFactory via
+    // CoCreateInstance with the Windows 10 IID. Instead the interface is obtained
+    // through WinRT's activation factory mechanism — RoGetActivationFactory.
+    //
+    // Reference: https://github.com/File-New-Project/EarTrumpet (PolicyConfig.cs)
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Retrieves the WinRT activation factory for the specified activatable class and
+    /// queries it for the interface identified by <paramref name="iid"/>.
+    /// </summary>
+    /// <param name="activatableClassId">
+    /// An HSTRING containing the fully-qualified WinRT class name, e.g.
+    /// <c>"Windows.Media.Internal.AudioPolicyConfig"</c>.
+    /// Create with <see cref="WindowsCreateString"/>; release with <see cref="WindowsDeleteString"/>.
+    /// </param>
+    /// <param name="iid">The IID of the interface to retrieve from the factory.</param>
+    /// <param name="factory">
+    /// Receives a raw COM interface pointer on success. The caller must release this
+    /// via <see cref="System.Runtime.InteropServices.Marshal.Release"/> after wrapping
+    /// it in a managed RCW with <see cref="System.Runtime.InteropServices.Marshal.GetObjectForIUnknown"/>.
+    /// </param>
+    /// <returns>
+    /// S_OK (0) on success. E_NOINTERFACE (0x80004002) if the class does not implement
+    /// the requested interface on this Windows build.
+    /// </returns>
+    [DllImport("combase.dll", PreserveSig = true)]
+    internal static extern int RoGetActivationFactory(
+        IntPtr activatableClassId,
+        ref Guid iid,
+        out IntPtr factory);
+
+    // -------------------------------------------------------------------------
     // HRESULT helpers
     // -------------------------------------------------------------------------
 
