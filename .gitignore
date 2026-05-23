@@ -32,6 +32,9 @@ coverage/
 # Publish profiles
 **/Properties/PublishProfiles/
 
+# Runtime log artefacts
+dragon_*.log
+
 # OS
 .DS_Store
 Thumbs.db
