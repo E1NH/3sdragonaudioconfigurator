@@ -1,6 +1,9 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Input;
+using System.Windows.Navigation;
 
 namespace DragonOS.AudioConfigurator.WPF.Views;
 
@@ -14,6 +17,45 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+    }
+
+    // ── Custom chrome handlers ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Allows the entire title bar to act as a drag handle.
+    /// Called on <c>MouseLeftButtonDown</c> of the title bar Border.
+    /// Button clicks inside the bar handle <c>MouseLeftButtonDown</c> themselves
+    /// and mark it handled, so they never reach this method.
+    /// </summary>
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        => DragMove();
+
+    /// <summary>Closes the application.</summary>
+    private void BtnClose_Click(object sender, RoutedEventArgs e)
+        => Application.Current.Shutdown();
+
+    /// <summary>Collapses the window to the taskbar.</summary>
+    private void BtnMinimize_Click(object sender, RoutedEventArgs e)
+        => WindowState = WindowState.Minimized;
+
+    // ── Branding ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Opens the 3sdragon.eu website in the system default browser when the
+    /// footer hyperlink is clicked.
+    /// </summary>
+    private void BrandingLink_RequestNavigate(object sender, RequestNavigateEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri)
+            {
+                UseShellExecute = true,
+            });
+        }
+        catch { /* Non-fatal — browser may not be available. */ }
+
+        e.Handled = true;
     }
 }
 

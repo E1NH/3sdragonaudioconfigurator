@@ -3,55 +3,63 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:DragonOS.AudioConfigurator.WPF.ViewModels"
         xmlns:local="clr-namespace:DragonOS.AudioConfigurator.WPF.Views"
-        Title="Dragon OS Audio Configurator"
-        Width="560" Height="480"
-        MinWidth="560" MinHeight="480"
+        Title="3S Dragon — Audio Configurator"
+        Width="560" Height="640"
+        MinWidth="560" MinHeight="640"
+        WindowStyle="None"
         ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
-        Background="#0F0F1A"
-        FontFamily="Segoe UI"
+        Background="#07071A"
+        FontFamily="Rajdhani, Segoe UI"
         FontSize="13">
 
     <Window.Resources>
 
         <!-- ================================================================
-            Colour palette
+            Dragon OS colour palette
+            Source: packages/desktop/renderer/settings.css + wyvern_styles_scaffold.css
         ================================================================ -->
-        <SolidColorBrush x:Key="BrushBackground"    Color="#0F0F1A"/>
-        <SolidColorBrush x:Key="BrushSurface"       Color="#1A1A2E"/>
-        <SolidColorBrush x:Key="BrushBorder"        Color="#2A2A4A"/>
-        <SolidColorBrush x:Key="BrushTextPrimary"   Color="#E8E8F0"/>
-        <SolidColorBrush x:Key="BrushTextSecondary" Color="#8888AA"/>
+        <SolidColorBrush x:Key="BrushBackground"    Color="#07071A"/>
+        <SolidColorBrush x:Key="BrushSurface"       Color="#0D0B14"/>
+        <SolidColorBrush x:Key="BrushSurfaceHigh"   Color="#14112A"/>
+        <SolidColorBrush x:Key="BrushBorder"        Color="#1E1A30"/>
+        <SolidColorBrush x:Key="BrushLine"          Color="#252040"/>
+        <SolidColorBrush x:Key="BrushTextPrimary"   Color="#E0E0E0"/>
+        <SolidColorBrush x:Key="BrushTextSecondary" Color="#9AA3B8"/>
         <SolidColorBrush x:Key="BrushAccent"        Color="#E94560"/>
-        <SolidColorBrush x:Key="BrushSuccess"       Color="#00C853"/>
+        <SolidColorBrush x:Key="BrushAccentHover"   Color="#FF1040"/>
+        <SolidColorBrush x:Key="BrushAccentPress"   Color="#CC0030"/>
+        <SolidColorBrush x:Key="BrushAccentDim"     Color="#3A0F1A"/>
+        <SolidColorBrush x:Key="BrushSuccess"       Color="#2ECC71"/>
         <SolidColorBrush x:Key="BrushWarning"       Color="#FFD740"/>
-        <SolidColorBrush x:Key="BrushError"         Color="#FF1744"/>
-        <SolidColorBrush x:Key="BrushPending"       Color="#44445A"/>
+        <SolidColorBrush x:Key="BrushError"         Color="#FF3B3B"/>
+        <SolidColorBrush x:Key="BrushPending"       Color="#4A4A5A"/>
         <SolidColorBrush x:Key="BrushInProgress"    Color="#FFD740"/>
 
         <!-- ================================================================
-            Value converters — declared here, ABOVE the DataTemplate that uses
-            them. WPF resolves StaticResource references sequentially within a
-            ResourceDictionary; a converter declared after the DataTemplate
-            causes StaticResourceHolder.ProvideValue to throw a
-            XamlParseException at the point the template is first instantiated.
+            Value converters — declared ABOVE DataTemplates that use them.
         ================================================================ -->
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
         <local:NullToCollapsedConverter x:Key="NullToCollapsedConverter"/>
         <local:NullToVisibleConverter   x:Key="NullToVisibleConverter"/>
 
         <!-- ================================================================
-            Step item DataTemplate
-            Bound to StepViewModel. DataTriggers switch icon colour and
-            progress bar visibility based on StepStatus.
+            Step card DataTemplate — Dragon OS chamfered card style.
+            ChamferBorder provides the diagonal corner cuts + corner accents.
+            DataTriggers change the Stroke colour and thickness by StepStatus.
         ================================================================ -->
         <DataTemplate DataType="{x:Type vm:StepViewModel}">
-            <Border Background="{StaticResource BrushSurface}"
-                    BorderBrush="{StaticResource BrushBorder}"
-                    BorderThickness="1"
-                    CornerRadius="6"
-                    Margin="0,0,0,8"
-                    Padding="16,12">
+            <local:ChamferBorder x:Name="CardBorder"
+                                 ChamferSize="8"
+                                 Stroke="{StaticResource BrushBorder}"
+                                 StrokeThickness="1"
+                                 Padding="16,12,16,12"
+                                 Margin="0,0,0,8"
+                                 ShowCornerAccents="True">
+                <local:ChamferBorder.Fill>
+                    <SolidColorBrush Color="#0D0B14"/>
+                </local:ChamferBorder.Fill>
+
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="28"/>
@@ -76,33 +84,36 @@
                     <!-- Step name -->
                     <TextBlock Grid.Column="1" Grid.Row="0"
                                Text="{Binding Name}"
-                               FontWeight="SemiBold"
-                               FontSize="13.5"
+                               FontFamily="Rajdhani, Segoe UI"
+                               FontWeight="Bold"
+                               FontSize="13"
                                Foreground="{StaticResource BrushTextPrimary}"/>
 
-                    <!-- Step detail / progress message — visible only when Detail is non-null -->
+                    <!-- Detail text — visible only when populated -->
                     <TextBlock Grid.Column="1" Grid.Row="1"
                                Text="{Binding Detail}"
+                               FontFamily="Rajdhani, Segoe UI"
                                FontSize="11.5"
                                Foreground="{StaticResource BrushTextSecondary}"
                                TextWrapping="Wrap"
                                Margin="0,2,0,0"
                                Visibility="{Binding Detail, Converter={StaticResource NullToCollapsedConverter}}"/>
 
-                    <!-- Description shown only when Detail is null (pending state) -->
+                    <!-- Description — shown only when Detail is null (pending state) -->
                     <TextBlock Grid.Column="1" Grid.Row="1"
                                Text="{Binding Description}"
+                               FontFamily="Rajdhani, Segoe UI"
                                FontSize="11.5"
                                Foreground="{StaticResource BrushPending}"
                                TextWrapping="Wrap"
                                Margin="0,2,0,0"
                                Visibility="{Binding Detail, Converter={StaticResource NullToVisibleConverter}}"/>
 
-                    <!-- Progress bar — visible only during InProgress state -->
+                    <!-- Progress bar — visible only during InProgress -->
                     <ProgressBar x:Name="StepProgressBar"
                                  Grid.Column="1" Grid.Row="2"
-                                 Height="3"
-                                 Margin="0,6,0,0"
+                                 Height="2"
+                                 Margin="0,8,0,0"
                                  Minimum="0" Maximum="100"
                                  Value="{Binding ProgressPercent}"
                                  IsIndeterminate="{Binding IsProgressIndeterminate}"
@@ -110,40 +121,23 @@
                                  Foreground="{StaticResource BrushAccent}"
                                  Background="{StaticResource BrushBorder}"/>
                 </Grid>
+            </local:ChamferBorder>
 
-                <!-- DataTriggers: switch icon colour and progress bar visibility by status -->
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Status}" Value="InProgress">
-                                <Setter Property="BorderBrush" Value="{StaticResource BrushAccent}"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding Status}" Value="Succeeded">
-                                <Setter Property="BorderBrush" Value="{StaticResource BrushSuccess}"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding Status}" Value="Failed">
-                                <Setter Property="BorderBrush" Value="{StaticResource BrushError}"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-
-                <Border.Triggers>
-                    <EventTrigger RoutedEvent="Loaded"/>
-                </Border.Triggers>
-            </Border>
-
-            <!-- Icon colour DataTriggers via style on the TextBlock -->
+            <!-- DataTriggers: stroke colour + icon colour by StepStatus -->
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding Status}" Value="InProgress">
-                    <Setter TargetName="IconText"          Property="Foreground" Value="{StaticResource BrushInProgress}"/>
-                    <Setter TargetName="StepProgressBar"   Property="Visibility" Value="Visible"/>
+                    <Setter TargetName="CardBorder"     Property="Stroke"          Value="{StaticResource BrushAccent}"/>
+                    <Setter TargetName="CardBorder"     Property="StrokeThickness" Value="1.5"/>
+                    <Setter TargetName="IconText"       Property="Foreground"      Value="{StaticResource BrushInProgress}"/>
+                    <Setter TargetName="StepProgressBar" Property="Visibility"     Value="Visible"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="Succeeded">
-                    <Setter TargetName="IconText" Property="Foreground" Value="{StaticResource BrushSuccess}"/>
+                    <Setter TargetName="CardBorder" Property="Stroke"     Value="{StaticResource BrushSuccess}"/>
+                    <Setter TargetName="IconText"   Property="Foreground" Value="{StaticResource BrushSuccess}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="Failed">
-                    <Setter TargetName="IconText" Property="Foreground" Value="{StaticResource BrushError}"/>
+                    <Setter TargetName="CardBorder" Property="Stroke"     Value="{StaticResource BrushError}"/>
+                    <Setter TargetName="IconText"   Property="Foreground" Value="{StaticResource BrushError}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="Skipped">
                     <Setter TargetName="IconText" Property="Foreground" Value="{StaticResource BrushTextSecondary}"/>
@@ -152,36 +146,105 @@
         </DataTemplate>
 
         <!-- ================================================================
-            Configure button style
+            Primary button — chamfered, Dragon OS red accent.
         ================================================================ -->
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Background"   Value="{StaticResource BrushAccent}"/>
-            <Setter Property="Foreground"   Value="White"/>
-            <Setter Property="FontSize"     Value="14"/>
-            <Setter Property="FontWeight"   Value="SemiBold"/>
-            <Setter Property="Padding"      Value="32,10"/>
+            <Setter Property="Background"      Value="{StaticResource BrushAccent}"/>
+            <Setter Property="Foreground"      Value="White"/>
+            <Setter Property="FontFamily"      Value="Rajdhani, Segoe UI"/>
+            <Setter Property="FontSize"        Value="14"/>
+            <Setter Property="FontWeight"      Value="Bold"/>
+            <Setter Property="Padding"         Value="32,11"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor"       Value="Hand"/>
+            <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="6"
-                                Padding="{TemplateBinding Padding}">
+                        <local:ChamferBorder x:Name="Bd"
+                                             Fill="{TemplateBinding Background}"
+                                             StrokeThickness="0"
+                                             ChamferSize="7"
+                                             ShowCornerAccents="False"
+                                             Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
-                        </Border>
+                        </local:ChamferBorder>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#FF1040"/>
+                                <Setter TargetName="Bd" Property="Fill" Value="{StaticResource BrushAccentHover}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrushBorder}"/>
+                                <Setter TargetName="Bd" Property="Fill" Value="{StaticResource BrushBorder}"/>
                                 <Setter Property="Foreground" Value="{StaticResource BrushTextSecondary}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#CC0030"/>
+                                <Setter TargetName="Bd" Property="Fill" Value="{StaticResource BrushAccentPress}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Hyperlink style — no underline at rest, underline on hover -->
+        <Style x:Key="BrandingLinkStyle" TargetType="Hyperlink">
+            <Setter Property="Foreground"      Value="{StaticResource BrushAccent}"/>
+            <Setter Property="TextDecorations" Value="None"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="TextDecorations" Value="Underline"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ================================================================
+            Control dot glow effects (shared resources so triggers can
+            set the entire Effect object — WPF can't set sub-properties
+            from a ControlTemplate trigger).
+        ================================================================ -->
+        <DropShadowEffect x:Key="CloseGlow"    Color="#FF003C" BlurRadius="8" ShadowDepth="0" Opacity="1"/>
+        <DropShadowEffect x:Key="MinimizeGlow" Color="#E94560" BlurRadius="8" ShadowDepth="0" Opacity="1"/>
+
+        <!-- Close dot — red glow on hover -->
+        <Style x:Key="CloseDotStyle" TargetType="Button">
+            <Setter Property="Width"     Value="9"/>
+            <Setter Property="Height"    Value="9"/>
+            <Setter Property="Cursor"    Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <!-- Chamfer cut top-left corner (matches Dragon OS CSS clip-path polygon) -->
+                        <Path x:Name="Dot"
+                              Data="M1.8,0 L9,0 L9,9 L0,9 L0,1.8 Z"
+                              Fill="#3A3A3A"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Dot" Property="Fill"   Value="#FF003C"/>
+                                <Setter TargetName="Dot" Property="Effect" Value="{StaticResource CloseGlow}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Minimize dot — Dragon red glow on hover -->
+        <Style x:Key="MinimizeDotStyle" TargetType="Button">
+            <Setter Property="Width"     Value="9"/>
+            <Setter Property="Height"    Value="9"/>
+            <Setter Property="Cursor"    Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Path x:Name="Dot"
+                              Data="M1.8,0 L9,0 L9,9 L0,9 L0,1.8 Z"
+                              Fill="#3A3A3A"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Dot" Property="Fill"   Value="#E94560"/>
+                                <Setter TargetName="Dot" Property="Effect" Value="{StaticResource MinimizeGlow}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -192,82 +255,313 @@
     </Window.Resources>
 
     <!-- ================================================================
-        Root layout
+        Root layout — 5 rows: header / steps / status / button / footer.
+        Background layers (hex grid, radial gradient, scanlines) are
+        drawn as Rectangle elements spanning all rows, rendered first
+        so they sit behind all UI content.
     ================================================================ -->
-    <Grid Background="{StaticResource BrushBackground}">
+    <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>  <!-- Header -->
-            <RowDefinition Height="*"/>     <!-- Step list -->
-            <RowDefinition Height="Auto"/>  <!-- Status bar -->
-            <RowDefinition Height="Auto"/>  <!-- Action button -->
+            <RowDefinition Height="36"/>    <!-- Custom title bar  -->
+            <RowDefinition Height="Auto"/>  <!-- Header            -->
+            <RowDefinition Height="*"/>     <!-- Step list         -->
+            <RowDefinition Height="Auto"/>  <!-- Status / success  -->
+            <RowDefinition Height="Auto"/>  <!-- Action button     -->
+            <RowDefinition Height="Auto"/>  <!-- Footer branding   -->
         </Grid.RowDefinitions>
 
-        <!-- Header -->
+        <!-- ============================================================
+            Background layer 1 — void base fill
+        ============================================================ -->
+        <Rectangle Grid.RowSpan="6" Fill="#07071A"/>
+
+        <!-- ============================================================
+            Background layer 2 — radial gradient: slight purple-tinted
+            centre fading to pure void, matching Dragon OS body::before.
+        ============================================================ -->
+        <Rectangle Grid.RowSpan="6">
+            <Rectangle.Fill>
+                <RadialGradientBrush GradientOrigin="0.5,0.35" Center="0.5,0.35"
+                                     RadiusX="0.7" RadiusY="0.65">
+                    <GradientStop Color="#15102A" Offset="0"/>
+                    <GradientStop Color="#0A0818" Offset="0.5"/>
+                    <GradientStop Color="#000000" Offset="1"/>
+                </RadialGradientBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+
+        <!-- ============================================================
+            Background layer 3 — hex grid texture.
+            Tile: 30×52 px (pointy-top hexagon cell). Each tile draws:
+              - Top arc:   (0,13)→(15,0)→(30,13)
+              - Bottom arc:(0,39)→(15,52)→(30,39)
+              - Right side:(30,13)→(30,39)  [shared with adjacent tile]
+            This produces a complete hex grid on tiling.
+        ============================================================ -->
+        <Rectangle Grid.RowSpan="6" Opacity="0.14">
+            <Rectangle.Fill>
+                <DrawingBrush TileMode="Tile"
+                              Viewport="0,0,30,52"
+                              ViewportUnits="Absolute">
+                    <DrawingBrush.Drawing>
+                        <GeometryDrawing>
+                            <GeometryDrawing.Pen>
+                                <Pen Brush="#2A2550" Thickness="0.8"/>
+                            </GeometryDrawing.Pen>
+                            <GeometryDrawing.Geometry>
+                                <PathGeometry>
+                                    <PathFigure StartPoint="0,13" IsClosed="False">
+                                        <LineSegment Point="15,0"/>
+                                        <LineSegment Point="30,13"/>
+                                    </PathFigure>
+                                    <PathFigure StartPoint="0,39" IsClosed="False">
+                                        <LineSegment Point="15,52"/>
+                                        <LineSegment Point="30,39"/>
+                                    </PathFigure>
+                                    <PathFigure StartPoint="30,13" IsClosed="False">
+                                        <LineSegment Point="30,39"/>
+                                    </PathFigure>
+                                </PathGeometry>
+                            </GeometryDrawing.Geometry>
+                        </GeometryDrawing>
+                    </DrawingBrush.Drawing>
+                </DrawingBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+
+        <!-- ============================================================
+            Background layer 4 — scanline overlay.
+            1 px opaque line every 3 px, matching Dragon OS CSS
+            repeating-linear-gradient scanline pattern.
+        ============================================================ -->
+        <Rectangle Grid.RowSpan="6" Opacity="0.18">
+            <Rectangle.Fill>
+                <DrawingBrush TileMode="Tile"
+                              Viewport="0,0,1,3"
+                              ViewportUnits="Absolute">
+                    <DrawingBrush.Drawing>
+                        <GeometryDrawing>
+                            <GeometryDrawing.Brush>
+                                <SolidColorBrush Color="#FFFFFF" Opacity="0.04"/>
+                            </GeometryDrawing.Brush>
+                            <GeometryDrawing.Geometry>
+                                <RectangleGeometry Rect="0,2,1,1"/>
+                            </GeometryDrawing.Geometry>
+                        </GeometryDrawing>
+                    </DrawingBrush.Drawing>
+                </DrawingBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+
+        <!-- ============================================================
+            Custom title bar — 36 px.
+            Mirrors the Dragon OS / Wyvern Electron title bar:
+              • Full bar is a drag handle (MouseLeftButtonDown → DragMove).
+              • Control dots on the left opt out of drag via their own hit-test.
+              • Wordmark is centred, pointer-events off so it doesn't block drag.
+        ============================================================ -->
         <Border Grid.Row="0"
-                Background="{StaticResource BrushSurface}"
-                BorderBrush="{StaticResource BrushBorder}"
+                Background="#D9000000"
+                BorderBrush="#0D0B1A"
                 BorderThickness="0,0,0,1"
-                Padding="24,16">
-            <StackPanel>
-                <TextBlock Text="DRAGON OS"
-                           FontSize="11"
+                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid>
+                <!-- Control dots — right side, minimize → close -->
+                <StackPanel Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Right"
+                            Margin="0,0,14,0">
+                    <Button Style="{StaticResource MinimizeDotStyle}"
+                            Click="BtnMinimize_Click"
+                            ToolTip="Minimise"/>
+                    <Button Style="{StaticResource CloseDotStyle}"
+                            Click="BtnClose_Click"
+                            Margin="7,0,0,0"
+                            ToolTip="Close"/>
+                </StackPanel>
+
+                <!-- Centred wordmark — decorative only, must not intercept drag -->
+                <TextBlock HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Text="3S DRAGON  ·  AUDIO CONFIGURATOR"
+                           FontFamily="Rajdhani, Segoe UI"
+                           FontSize="10"
                            FontWeight="Bold"
-                           Foreground="{StaticResource BrushAccent}"/>
-                <TextBlock Text="Audio Configurator"
-                           FontSize="20"
-                           FontWeight="Bold"
-                           Foreground="{StaticResource BrushTextPrimary}"
-                           Margin="0,2,0,0"/>
-                <TextBlock Text="Routes Spotify audio to VB-Cable for OBS capture."
-                           FontSize="11.5"
-                           Foreground="{StaticResource BrushTextSecondary}"
-                           Margin="0,4,0,0"/>
-            </StackPanel>
+                           Foreground="White"
+                           Opacity="0.85"
+                           IsHitTestVisible="False">
+                    <TextBlock.Effect>
+                        <DropShadowEffect Color="#E94560" BlurRadius="10" ShadowDepth="0" Opacity="0.55"/>
+                    </TextBlock.Effect>
+                </TextBlock>
+            </Grid>
         </Border>
 
-        <!-- Step list -->
-        <ScrollViewer Grid.Row="1"
-                      Padding="24,20,24,0"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
-            <ItemsControl ItemsSource="{Binding Steps}"/>
-        </ScrollViewer>
+        <!-- ============================================================
+            Header
+        ============================================================ -->
+        <Border Grid.Row="1"
+                BorderBrush="{StaticResource BrushLine}"
+                BorderThickness="0,0,0,1"
+                Padding="24,18,24,16">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#18142E" Offset="0"/>
+                    <GradientStop Color="#07071A" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
 
-        <!-- Status message -->
-        <Border Grid.Row="2" Padding="24,10,24,4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>  <!-- Dragon mark  -->
+                    <ColumnDefinition Width="*"/>     <!-- Title stack  -->
+                    <ColumnDefinition Width="Auto"/>  <!-- Version tag  -->
+                </Grid.ColumnDefinitions>
+
+                <!-- Dragon mark: chamfered "3S" logo box -->
+                <local:ChamferBorder Grid.Column="0"
+                                     ChamferSize="5"
+                                     Stroke="{StaticResource BrushAccent}"
+                                     StrokeThickness="1.5"
+                                     ShowCornerAccents="False"
+                                     Padding="10,7,10,7"
+                                     Margin="0,0,18,0"
+                                     VerticalAlignment="Center">
+                    <local:ChamferBorder.Fill>
+                        <SolidColorBrush Color="#3A0F1A"/>
+                    </local:ChamferBorder.Fill>
+                    <TextBlock Text="3S"
+                               FontFamily="Rajdhani, Segoe UI"
+                               FontSize="20"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource BrushAccent}"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"/>
+                </local:ChamferBorder>
+
+                <!-- Title stack -->
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="DRAGON  OS"
+                               FontFamily="Rajdhani, Segoe UI"
+                               FontSize="10"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource BrushAccent}"/>
+                    <TextBlock Text="Audio Configurator"
+                               FontFamily="Rajdhani, Segoe UI"
+                               FontSize="20"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource BrushTextPrimary}"
+                               Margin="0,2,0,0"/>
+                    <TextBlock Text="Routes Spotify audio to VB-Cable for OBS capture."
+                               FontFamily="Rajdhani, Segoe UI"
+                               FontSize="11"
+                               Foreground="{StaticResource BrushTextSecondary}"
+                               Margin="0,5,0,0"/>
+                </StackPanel>
+
+                <!-- Version tag -->
+                <TextBlock Grid.Column="2"
+                           Text="v1.0"
+                           FontFamily="Rajdhani, Segoe UI"
+                           FontSize="10"
+                           Foreground="{StaticResource BrushPending}"
+                           VerticalAlignment="Top"
+                           HorizontalAlignment="Right"
+                           Margin="16,2,0,0"/>
+            </Grid>
+        </Border>
+
+        <!-- ============================================================
+            Step list
+        ============================================================ -->
+        <ItemsControl Grid.Row="2"
+                      ItemsSource="{Binding Steps}"
+                      Margin="24,20,24,0"/>
+
+        <!-- ============================================================
+            Status message
+        ============================================================ -->
+        <Border Grid.Row="3" Padding="24,10,24,4">
             <TextBlock Text="{Binding StatusMessage}"
+                       FontFamily="Rajdhani, Segoe UI"
                        FontSize="11.5"
                        Foreground="{StaticResource BrushTextSecondary}"
-                       TextWrapping="Wrap"
-                       TextTrimming="None"/>
+                       TextWrapping="Wrap"/>
         </Border>
 
-        <!-- Success banner -->
-        <Border Grid.Row="2"
-                Background="#1A3A1A"
+        <!-- ============================================================
+            Success banner — overlays status row when Succeeded = true
+        ============================================================ -->
+        <Border Grid.Row="3"
                 BorderBrush="{StaticResource BrushSuccess}"
                 BorderThickness="0,1,0,0"
                 Padding="24,10"
                 Visibility="{Binding Succeeded, Converter={StaticResource BoolToVisibility}}">
+            <Border.Background>
+                <SolidColorBrush Color="#0A2A14"/>
+            </Border.Background>
             <StackPanel>
                 <TextBlock Text="✓  Audio matrix configured. Spotify is now routed to CABLE Input."
-                           Foreground="{StaticResource BrushSuccess}"
+                           FontFamily="Rajdhani, Segoe UI"
                            FontSize="12"
-                           FontWeight="SemiBold"/>
-                <TextBlock Text="Restart Spotify to activate the new routing."
-                           Foreground="{StaticResource BrushSuccess}"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource BrushSuccess}"/>
+                <TextBlock Text="Restart Spotify if playback has not switched yet."
+                           FontFamily="Rajdhani, Segoe UI"
                            FontSize="11"
+                           Foreground="{StaticResource BrushSuccess}"
                            Margin="0,3,0,0"
                            Opacity="0.75"/>
             </StackPanel>
         </Border>
 
-        <!-- Action button -->
-        <Border Grid.Row="3" Padding="24,12,24,20">
+        <!-- ============================================================
+            Action button
+        ============================================================ -->
+        <Border Grid.Row="4" Padding="24,12,24,12">
             <Button Style="{StaticResource PrimaryButtonStyle}"
                     Command="{Binding ConfigureCommand}"
                     HorizontalAlignment="Stretch"
                     Content="{Binding ButtonLabel}"/>
         </Border>
+
+        <!-- ============================================================
+            Footer branding
+        ============================================================ -->
+        <Border Grid.Row="5"
+                BorderBrush="{StaticResource BrushLine}"
+                BorderThickness="0,1,0,0"
+                Padding="24,9">
+            <Border.Background>
+                <SolidColorBrush Color="#0A0814"/>
+            </Border.Background>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           FontFamily="Rajdhani, Segoe UI"
+                           FontSize="10"
+                           Foreground="{StaticResource BrushPending}"
+                           VerticalAlignment="Center">
+                    FREE &amp; OPEN SOURCE  —  MIT LICENSE
+                </TextBlock>
+
+                <TextBlock Grid.Column="1"
+                           FontFamily="Rajdhani, Segoe UI"
+                           FontSize="10"
+                           VerticalAlignment="Center">
+                    <Hyperlink x:Name="BrandingLink"
+                               Style="{StaticResource BrandingLinkStyle}"
+                               NavigateUri="https://3sdragon.eu"
+                               RequestNavigate="BrandingLink_RequestNavigate">
+                        3SDRAGON.EU
+                    </Hyperlink>
+                </TextBlock>
+            </Grid>
+        </Border>
+
     </Grid>
 </Window>

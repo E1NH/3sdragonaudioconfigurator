@@ -71,42 +71,20 @@ internal interface IAudioPolicyConfigFactory
     // -------------------------------------------------------------------------
 #pragma warning disable IDE1006 // Naming convention — intentional vtable padding names.
 
-    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
     [PreserveSig] int __vtbl_pad_0();  // add_CtxVolumeChange
-
-    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
     [PreserveSig] int __vtbl_pad_1();  // remove_CtxVolumeChange
-
-    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
     [PreserveSig] int __vtbl_pad_2();  // add_RingerVibrateStateChanged
-
-    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
     [PreserveSig] int __vtbl_pad_3();  // remove_RingerVibrateStateChanged
-
-    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
     [PreserveSig] int __vtbl_pad_4();  // GetTelemetryId
-
-    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
     [PreserveSig] int __vtbl_pad_5();  // SetTelemetryId
-
-    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
     [PreserveSig] int __vtbl_pad_6();  // GetContainerCount
-
-    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
     [PreserveSig] int __vtbl_pad_7();  // GetContainer
-
-    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
     [PreserveSig] int __vtbl_pad_8();  // GetContainerAudioDeviceId
-
-    /// <inheritdoc cref="IAudioPolicyConfigFactory"/>
     [PreserveSig] int __vtbl_pad_9();  // SetContainerAudioDeviceId
 
 #pragma warning restore IDE1006
 
-    // -------------------------------------------------------------------------
-    // Vtable offset 10: GetPersistedDefaultAudioEndpoint
-    // -------------------------------------------------------------------------
-
+    // Vtable offset 10.
     /// <summary>
     /// Reads the persisted per-process audio endpoint preference for the given process.
     /// </summary>
@@ -136,10 +114,7 @@ internal interface IAudioPolicyConfigFactory
         ERole role,
         out IntPtr hstringDeviceId);
 
-    // -------------------------------------------------------------------------
-    // Vtable offset 11: SetPersistedDefaultAudioEndpoint  ← THE KEY METHOD
-    // -------------------------------------------------------------------------
-
+    // Vtable offset 11 — THE KEY METHOD.
     /// <summary>
     /// Writes a per-process audio endpoint preference for the given process.
     /// This is the exact mechanism Windows Settings uses internally when the user
@@ -202,6 +177,65 @@ internal interface IAudioPolicyConfigFactory
 internal class AudioPolicyConfigFactoryComObject { }
 
 // ============================================================================
+// IPolicyConfig — System-wide default audio endpoint control
+//
+// This is the OLDER, separate undocumented interface used to change the
+// Windows SYSTEM default playback device (the global setting, not per-app).
+// It lives on the same COM class (CPolicyConfigClient) as IAudioPolicyConfigFactory
+// but exposes a completely different vtable via a different IID.
+//
+// We use it exclusively for the brief system-default swap: set default to
+// CABLE Input for ~500 ms so Spotify's live audio session receives a
+// WM_DEVICECHANGE / device-removed notification and reopens on CABLE Input,
+// then immediately restore the original default so no other app is affected.
+//
+// CANONICAL REFERENCE:
+//   SoundSwitch: https://github.com/Belphemur/SoundSwitch (AudioPolicyConfig.cs)
+//   EarTrumpet:  https://github.com/File-New-Project/EarTrumpet (PolicyConfig.cs)
+//
+// VTABLE LAYOUT (offsets 3–14 after IUnknown):
+//   3:  GetMixFormat          4:  GetDeviceFormat
+//   5:  ResetDeviceFormat     6:  SetDeviceFormat
+//   7:  GetProcessingPeriod   8:  SetProcessingPeriod
+//   9:  GetShareMode          10: SetShareMode
+//   11: GetPropertyValue      12: SetPropertyValue
+//   13: SetDefaultEndpoint    ← THE KEY METHOD
+//   14: SetEndpointVisibility
+// ============================================================================
+
+/// <summary>
+/// Undocumented COM interface for changing the Windows system-wide default
+/// audio endpoint. Activate via <see cref="AudioPolicyConfigFactoryComObject"/>.
+/// </summary>
+[ComImport]
+[Guid("f8679f50-850a-41cf-9c72-430f290290c8")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IPolicyConfig
+{
+#pragma warning disable IDE1006
+    [PreserveSig] int __pad_GetMixFormat(IntPtr a, IntPtr b);
+    [PreserveSig] int __pad_GetDeviceFormat(IntPtr a, bool b, IntPtr c);
+    [PreserveSig] int __pad_ResetDeviceFormat(IntPtr a);
+    [PreserveSig] int __pad_SetDeviceFormat(IntPtr a, IntPtr b, IntPtr c);
+    [PreserveSig] int __pad_GetProcessingPeriod(IntPtr a, bool b, IntPtr c, IntPtr d);
+    [PreserveSig] int __pad_SetProcessingPeriod(IntPtr a, IntPtr b);
+    [PreserveSig] int __pad_GetShareMode(IntPtr a, IntPtr b);
+    [PreserveSig] int __pad_SetShareMode(IntPtr a, IntPtr b);
+    [PreserveSig] int __pad_GetPropertyValue(IntPtr a, bool b, IntPtr c, IntPtr d);
+    [PreserveSig] int __pad_SetPropertyValue(IntPtr a, bool b, IntPtr c, IntPtr d);
+#pragma warning restore IDE1006
+
+    /// <summary>
+    /// Sets the system-wide default audio endpoint for the given role.
+    /// Use sparingly — this changes the global playback device for all applications.
+    /// </summary>
+    [PreserveSig]
+    int SetDefaultEndpoint(
+        [MarshalAs(UnmanagedType.LPWStr)] string pszDeviceId,
+        ERole role);
+}
+
+// ============================================================================
 // IAudioPolicyConfigFactoryWin11 — Windows 11 21H2+ (build >= 21390)
 //
 // Windows 11 ships a revised interface with additional volume-group and chat-
@@ -248,7 +282,7 @@ internal class AudioPolicyConfigFactoryComObject { }
 /// <summary>
 /// The Windows 11 (build 21390+) revision of the per-application audio policy
 /// factory interface. Obtained via WinRT activation — see
-/// <see cref="AudioRouterService"/> for usage.
+/// <c>AudioRouterService</c> for usage.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -311,11 +345,7 @@ internal interface IAudioPolicyConfigFactoryWin11
 
 #pragma warning restore IDE1006
 
-    // -------------------------------------------------------------------------
-    // Vtable offset 19: SetPersistedDefaultAudioEndpoint  ← THE KEY METHOD
-    // NOTE: Set precedes Get on Win11 — reversed from Win10.
-    // -------------------------------------------------------------------------
-
+    // Vtable offset 19 — THE KEY METHOD. NOTE: Set precedes Get on Win11, reversed from Win10.
     /// <summary>
     /// Writes a per-process audio endpoint preference for the given process.
     /// Semantics are identical to the Win10 counterpart.
@@ -327,10 +357,7 @@ internal interface IAudioPolicyConfigFactoryWin11
         ERole role,
         IntPtr hstringDeviceId);
 
-    // -------------------------------------------------------------------------
-    // Vtable offset 20: GetPersistedDefaultAudioEndpoint
-    // -------------------------------------------------------------------------
-
+    // Vtable offset 20.
     /// <summary>
     /// Reads the persisted per-process audio endpoint preference for the given process.
     /// </summary>
@@ -341,10 +368,7 @@ internal interface IAudioPolicyConfigFactoryWin11
         ERole role,
         out IntPtr hstringDeviceId);
 
-    // -------------------------------------------------------------------------
-    // Vtable offset 21: ClearAllPersistedApplicationDefaultEndpoints
-    // -------------------------------------------------------------------------
-
+    // Vtable offset 21.
     /// <summary>
     /// Resets all per-application audio endpoint preferences to the system default.
     /// </summary>

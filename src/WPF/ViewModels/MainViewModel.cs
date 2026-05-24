@@ -24,17 +24,9 @@ namespace DragonOS.AudioConfigurator.WPF.ViewModels;
 /// </remarks>
 public sealed class MainViewModel : BaseViewModel
 {
-    // -------------------------------------------------------------------------
-    // Dependencies (injected via constructor)
-    // -------------------------------------------------------------------------
-
     private readonly IDependencyCheckService _dependencyCheck;
     private readonly IDriverInstallService   _driverInstall;
     private readonly IAudioRouterService     _audioRouter;
-
-    // -------------------------------------------------------------------------
-    // Observable state
-    // -------------------------------------------------------------------------
 
     private bool _isRunning;
 
@@ -113,10 +105,6 @@ public sealed class MainViewModel : BaseViewModel
         private set => SetField(ref _statusMessage, value);
     }
 
-    // -------------------------------------------------------------------------
-    // Step list
-    // -------------------------------------------------------------------------
-
     /// <summary>
     /// The ordered list of pipeline steps displayed in the UI.
     /// Each entry is a <see cref="StepViewModel"/> whose properties drive
@@ -131,19 +119,11 @@ public sealed class MainViewModel : BaseViewModel
     private readonly StepViewModel _stepRoute;
     private readonly StepViewModel _stepVerify;
 
-    // -------------------------------------------------------------------------
-    // Commands
-    // -------------------------------------------------------------------------
-
     /// <summary>
     /// Starts the audio configuration pipeline.
     /// Disabled while the pipeline is running or after it has completed.
     /// </summary>
     public ICommand ConfigureCommand { get; }
-
-    // -------------------------------------------------------------------------
-    // Constructor
-    // -------------------------------------------------------------------------
 
     /// <summary>
     /// Initialises the MainViewModel with its required services.
@@ -160,7 +140,6 @@ public sealed class MainViewModel : BaseViewModel
         _driverInstall   = driverInstall   ?? throw new ArgumentNullException(nameof(driverInstall));
         _audioRouter     = audioRouter     ?? throw new ArgumentNullException(nameof(audioRouter));
 
-        // Initialise the step list. Order matches the pipeline execution sequence.
         _stepSpotify = new StepViewModel(
             "Check Spotify",
             "Verifies Spotify is installed. Install from spotify.com if not found.");
@@ -189,10 +168,6 @@ public sealed class MainViewModel : BaseViewModel
             execute:    () => _ = RunPipelineAsync(),
             canExecute: () => !IsRunning && !Succeeded); // re-enabled after failure so user can retry
     }
-
-    // -------------------------------------------------------------------------
-    // Pipeline
-    // -------------------------------------------------------------------------
 
     /// <summary>
     /// Executes the four-step configuration pipeline asynchronously.
@@ -271,8 +246,37 @@ public sealed class MainViewModel : BaseViewModel
                 return;
             }
 
+            // Policy is written. Spotify's CEF audio renderer holds a hard WASAPI lock
+            // on the old endpoint and cannot live-switch mid-session — even the native
+            // Windows Sound Settings panel cannot force it. Execute a graceful teardown
+            // and cold-boot via the spotify: URI protocol so the fresh instance opens
+            // its audio session against the newly persisted CABLE Input endpoint.
+            SetStatusMessage("Policy applied. Restarting Spotify to activate CABLE Input routing...");
+
+            try
+            {
+                foreach (var proc in System.Diagnostics.Process.GetProcessesByName("Spotify"))
+                {
+                    try { proc.Kill(); } catch { /* Access errors on helper processes are non-fatal. */ }
+                    finally { proc.Dispose(); }
+                }
+            }
+            catch { /* If enumeration itself fails, proceed to relaunch anyway. */ }
+
+            await Task.Delay(1000); // Allow the OS to fully release WASAPI handles.
+
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName        = "spotify:",
+                    UseShellExecute = true,
+                });
+            }
+            catch { /* Non-fatal — user can reopen Spotify manually. */ }
+
             SetStepComplete(_stepRoute,
-                $"Routed {routeResult.Value} Spotify process(es) to CABLE Input.");
+                $"Routed {routeResult.Value} Spotify process(es) to CABLE Input. Spotify restarted.");
 
             // ---- Step 4: Verify ---------------------------------------------------
             SetStepBegin(_stepVerify, "Verifying configuration...");
@@ -291,10 +295,10 @@ public sealed class MainViewModel : BaseViewModel
 
             SetStepComplete(_stepVerify, "CABLE Input is active. Configuration complete.");
 
-            // ---- Done -------------------------------------------------------------
             Succeeded = true;
-            SetStatusMessage("Dragon OS audio matrix is fully configured. " +
-                             "Spotify output is now routed to VB-Cable.");
+            SetStatusMessage(
+                "Routing saved. Right-click Spotify in the taskbar tray → Quit, then reopen it. " +
+                "Spotify will open directly on CABLE Input.");
         }
         finally
         {
@@ -305,10 +309,6 @@ public sealed class MainViewModel : BaseViewModel
                 Dispatch(() => HasPreviousFailure = true);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Thread-safe UI helpers
-    // -------------------------------------------------------------------------
 
     /// <summary>
     /// Creates an <see cref="IProgress{ProgressReport}"/> sink that marshals

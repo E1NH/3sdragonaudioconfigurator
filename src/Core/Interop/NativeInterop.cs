@@ -88,6 +88,52 @@ internal static class NativeInterop
         out IntPtr factory);
 
     // -------------------------------------------------------------------------
+    // WM_SETTINGCHANGE broadcast
+    //
+    // After SetPersistedDefaultAudioEndpoint writes the routing preference,
+    // Spotify's active audio session will not switch until it receives a
+    // WM_SETTINGCHANGE broadcast — the same signal Windows Settings sends
+    // when the user changes a per-app audio device interactively.
+    //
+    // SendMessageTimeout with HWND_BROADCAST (-1) delivers the message to all
+    // top-level windows. SMTO_ABORTIFHUNG prevents blocking indefinitely if
+    // a hung window fails to process the message within the timeout period.
+    // -------------------------------------------------------------------------
+
+    private const uint WM_SETTINGCHANGE    = 0x001A;
+    private const uint SMTO_ABORTIFHUNG   = 0x0002;
+    private static readonly IntPtr HWND_BROADCAST = new IntPtr(-1);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = false)]
+    private static extern IntPtr SendMessageTimeout(
+        IntPtr   hWnd,
+        uint     Msg,
+        IntPtr   wParam,
+        string?  lParam,
+        uint     fuFlags,
+        uint     uTimeout,
+        out IntPtr lpdwResult);
+
+    /// <summary>
+    /// Broadcasts <c>WM_SETTINGCHANGE</c> with <c>lParam = "Sound"</c> to all
+    /// top-level windows, signalling that audio routing preferences have changed.
+    /// Applications that maintain open audio sessions (such as Spotify) listen for
+    /// this message and tear down their current session, reopening it on the newly
+    /// persisted endpoint.
+    /// </summary>
+    internal static void BroadcastAudioSettingChange()
+    {
+        SendMessageTimeout(
+            HWND_BROADCAST,
+            WM_SETTINGCHANGE,
+            IntPtr.Zero,
+            "Sound",
+            SMTO_ABORTIFHUNG,
+            5_000,
+            out _);
+    }
+
+    // -------------------------------------------------------------------------
     // HRESULT helpers
     // -------------------------------------------------------------------------
 

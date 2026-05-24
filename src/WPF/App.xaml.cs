@@ -15,11 +15,11 @@ public partial class App : Application
     /// <summary>
     /// App constructor — registers crash handlers BEFORE InitializeComponent and OnStartup
     /// so that BAML/XAML initialization failures are captured to disk rather than
-    /// silently vanishing. Log files are written to the exe's working directory.
+    /// silently vanishing.
     /// </summary>
     public App()
     {
-        // Background thread / AppDomain-level crashes (including host-level .NET failures).
+        // Background thread / AppDomain-level crashes.
         AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
         {
             File.WriteAllText("dragon_fatal_domain.log",
@@ -27,12 +27,10 @@ public partial class App : Application
         };
 
         // UI dispatcher thread crashes (BAML parse failures, binding errors that throw, etc.)
-        // NOTE: We use Environment.Exit instead of Shutdown here deliberately.
+        // NOTE: We use Environment.Exit instead of Shutdown deliberately.
         // Calling Application.Shutdown from within DispatcherUnhandledException while
-        // the layout engine is mid-flight re-triggers the layout pass, which re-throws
-        // the same exception, which re-enters this handler — an infinite recursion that
-        // exhausts the USER32 message stack (STATUS_STACK_OVERFLOW, c00000fd).
-        // Environment.Exit bypasses the dispatcher entirely and terminates immediately.
+        // the layout engine is mid-flight re-triggers the layout pass, causing infinite
+        // recursion that exhausts the USER32 message stack (STATUS_STACK_OVERFLOW).
         DispatcherUnhandledException += (sender, args) =>
         {
             try
@@ -40,10 +38,7 @@ public partial class App : Application
                 File.WriteAllText("dragon_fatal_ui.log",
                     $"[{DateTime.Now:u}] Dispatcher unhandled exception:\n{args.Exception}");
             }
-            catch
-            {
-                // If we can't write the log, swallow silently — we're already dying.
-            }
+            catch { /* If we can't write the log, swallow — we're already dying. */ }
 
             args.Handled = true;
             Environment.Exit(1);
@@ -59,32 +54,12 @@ public partial class App : Application
 
         try
         {
-            File.WriteAllText("dragon_startup.log",
-                $"[{DateTime.Now:u}] OnStartup reached. IsAdmin={IsRunningAsAdministrator()}");
-
-            if (!IsRunningAsAdministrator())
-            {
-                // Self-elevate: relaunch the current executable with the runas verb.
-                // This triggers the UAC prompt. By the time the elevated process starts,
-                // the single-file bundle has already been extracted by this first run,
-                // so Defender does not flag the elevated process as a dropper.
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName        = Environment.ProcessPath ?? Environment.GetCommandLineArgs()[0],
-                    UseShellExecute = true,
-                    Verb            = "runas",
-                });
-
-                Shutdown(0);
-                return;
-            }
-
             var httpClient = new System.Net.Http.HttpClient
             {
                 Timeout = TimeSpan.FromMinutes(10),
             };
             httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "DragonOS-AudioConfigurator/1.0 (github.com/E1NH/3sdragonaudioconfigurator)");
+                "DragonOS-AudioConfigurator/1.0 (3sdragon.eu)");
 
             IDependencyCheckService dependencyCheck = new DependencyCheckService();
             IDriverInstallService   driverInstall   = new DriverInstallService(httpClient);
@@ -95,9 +70,6 @@ public partial class App : Application
 
             MainWindow = mainWindow;
             mainWindow.Show();
-
-            File.AppendAllText("dragon_startup.log",
-                $"\n[{DateTime.Now:u}] Window shown successfully.");
         }
         catch (Exception ex)
         {
@@ -112,12 +84,5 @@ public partial class App : Application
 
             Shutdown(1);
         }
-    }
-
-    private static bool IsRunningAsAdministrator()
-    {
-        using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
-        var principal = new System.Security.Principal.WindowsPrincipal(identity);
-        return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
     }
 }

@@ -12,11 +12,6 @@ namespace DragonOS.AudioConfigurator.Core.Interop;
 // Header:        mmdeviceapi.h (Windows SDK)
 // ============================================================================
 
-// ----------------------------------------------------------------------------
-// IMMDevice — Represents a single audio endpoint hardware device.
-// GUID: {D666063F-1587-4E43-81F1-B948E807363F}
-// ----------------------------------------------------------------------------
-
 /// <summary>
 /// COM interface wrapping a single Windows audio endpoint device.
 /// Provides access to the device's unique ID and property store (friendly name, etc.).
@@ -70,11 +65,6 @@ internal interface IMMDevice
     int GetState(out DeviceState pdwState);
 }
 
-// ----------------------------------------------------------------------------
-// IMMDeviceCollection — An enumerable collection of IMMDevice instances.
-// GUID: {0BD7A1BE-7A1A-44DB-8397-CC5392387B5E}
-// ----------------------------------------------------------------------------
-
 /// <summary>
 /// COM interface representing a snapshot collection of audio endpoint devices,
 /// returned by <see cref="IMMDeviceEnumerator.EnumAudioEndpoints"/>.
@@ -92,12 +82,6 @@ internal interface IMMDeviceCollection
     [PreserveSig]
     int Item(uint nDevice, out IMMDevice ppDevice);
 }
-
-// ----------------------------------------------------------------------------
-// IMMDeviceEnumerator — The entry point for Core Audio device discovery.
-// Interface GUID: {A95664D2-9614-4F35-A746-DE8DB63617E6}
-// Class GUID:     {BCDE0395-E52F-467C-8E3D-C4579291692E}  (MMDeviceEnumerator)
-// ----------------------------------------------------------------------------
 
 /// <summary>
 /// The primary COM interface for enumerating Windows audio endpoint devices.
@@ -177,11 +161,6 @@ internal interface IMMDeviceEnumerator
 [ClassInterface(ClassInterfaceType.None)]
 internal class MMDeviceEnumeratorComObject { }
 
-// ----------------------------------------------------------------------------
-// IPropertyStore — Device metadata (friendly names, icons, etc.)
-// GUID: {886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99}
-// ----------------------------------------------------------------------------
-
 /// <summary>
 /// COM interface for reading key-value properties from a Windows Shell property store.
 /// Used here exclusively to retrieve <c>PKEY_Device_FriendlyName</c>.
@@ -211,10 +190,6 @@ internal interface IPropertyStore
     [PreserveSig]
     int Commit();
 }
-
-// ----------------------------------------------------------------------------
-// Supporting value types for IPropertyStore
-// ----------------------------------------------------------------------------
 
 /// <summary>
 /// Maps to the Win32 <c>PROPERTYKEY</c> struct: a GUID + property ID pair
@@ -293,6 +268,89 @@ internal struct PROPVARIANT
         => vt == 31 // VT_LPWSTR
             ? Marshal.PtrToStringUni(pwszVal)
             : null;
+}
+
+// ----------------------------------------------------------------------------
+// WASAPI Audio Session Management
+// Used to find the specific Spotify process that owns an active audio session.
+// Reference: https://learn.microsoft.com/en-us/windows/win32/coreaudio/wasapi
+// ----------------------------------------------------------------------------
+
+/// <summary>The operational state of an audio session.</summary>
+internal enum AudioSessionState
+{
+    Inactive = 0,
+    Active   = 1,
+    Expired  = 2,
+}
+
+/// <summary>
+/// Manages and enumerates audio sessions on an audio endpoint device.
+/// Obtained by calling <see cref="IMMDevice.Activate"/> with this interface's GUID.
+/// </summary>
+[ComImport]
+[Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IAudioSessionManager2
+{
+    // IAudioSessionManager base (vtable 3-4) — not needed, padded.
+    [PreserveSig] int __pad_GetAudioSessionControl(IntPtr a, uint b, IntPtr c);
+    [PreserveSig] int __pad_GetSimpleAudioVolume(IntPtr a, uint b, IntPtr c);
+
+    /// <summary>Returns an enumerator over all current audio sessions on this device.</summary>
+    [PreserveSig] int GetSessionEnumerator(out IAudioSessionEnumerator sessionEnum);
+
+    [PreserveSig] int __pad_RegisterSessionNotification(IntPtr a);
+    [PreserveSig] int __pad_UnregisterSessionNotification(IntPtr a);
+    [PreserveSig] int __pad_RegisterDuckNotification(IntPtr a, IntPtr b);
+    [PreserveSig] int __pad_UnregisterDuckNotification(IntPtr a);
+}
+
+/// <summary>Enumerates audio sessions on an audio endpoint device.</summary>
+[ComImport]
+[Guid("E2F5BB11-0570-40CA-ACDD-3AA01277DEE8")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IAudioSessionEnumerator
+{
+    [PreserveSig] int GetCount(out int sessionCount);
+
+    /// <summary>
+    /// Returns the session control at <paramref name="index"/>.
+    /// The CLR automatically QIs the returned pointer for <see cref="IAudioSessionControl2"/>.
+    /// </summary>
+    [PreserveSig] int GetSession(int index, out IAudioSessionControl2 session);
+}
+
+/// <summary>
+/// Extended audio session control. Inherits IAudioSessionControl's vtable (offsets 3-11)
+/// then adds its own methods (offsets 12-16). All base methods are redeclared here with
+/// vtable padding so the CLR sees the correct slot layout without COM interface inheritance.
+/// </summary>
+[ComImport]
+[Guid("bfb7ff88-7239-4fc9-8fa2-07c950be9c6d")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IAudioSessionControl2
+{
+    // IAudioSessionControl base (vtable 3-11).
+    [PreserveSig] int GetState(out AudioSessionState pRetVal);
+    [PreserveSig] int __pad_GetDisplayName(IntPtr a);
+    [PreserveSig] int __pad_SetDisplayName(IntPtr a, IntPtr b);
+    [PreserveSig] int __pad_GetIconPath(IntPtr a);
+    [PreserveSig] int __pad_SetIconPath(IntPtr a, IntPtr b);
+    [PreserveSig] int __pad_GetGroupingParam(IntPtr a);
+    [PreserveSig] int __pad_SetGroupingParam(IntPtr a, IntPtr b);
+    [PreserveSig] int __pad_RegisterNotification(IntPtr a);
+    [PreserveSig] int __pad_UnregisterNotification(IntPtr a);
+
+    // IAudioSessionControl2 extended (vtable 12-16).
+    [PreserveSig] int GetSessionIdentifier([MarshalAs(UnmanagedType.LPWStr)] out string pRetVal);
+    [PreserveSig] int GetSessionInstanceIdentifier([MarshalAs(UnmanagedType.LPWStr)] out string pRetVal);
+
+    /// <summary>Returns the PID of the process that owns this audio session.</summary>
+    [PreserveSig] int GetProcessId(out uint pRetVal);
+
+    [PreserveSig] int IsSystemSoundsSession();
+    [PreserveSig] int SetDuckingPreference([MarshalAs(UnmanagedType.Bool)] bool optOut);
 }
 
 /// <summary>
