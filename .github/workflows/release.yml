@@ -34,8 +34,22 @@ jobs:
       - name: Zip
         run: Compress-Archive -Path publish/* -DestinationPath DragonOS.AudioConfigurator.zip
 
+      - name: Generate SHA-256
+        run: |
+          $hash = (Get-FileHash DragonOS.AudioConfigurator.zip -Algorithm SHA256).Hash
+          "SHA-256: $hash  DragonOS.AudioConfigurator.zip" | Out-File -FilePath sha256.txt -Encoding utf8
+          echo "SHA256=$hash" >> $env:GITHUB_ENV
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: DragonOS.AudioConfigurator.zip
+          files: |
+            DragonOS.AudioConfigurator.zip
+            sha256.txt
           generate_release_notes: true
+          body: |
+            ## SHA-256 Checksum
+            ```
+            ${{ env.SHA256 }}  DragonOS.AudioConfigurator.zip
+            ```
+            Verify before running: `Get-FileHash DragonOS.AudioConfigurator.zip -Algorithm SHA256`
