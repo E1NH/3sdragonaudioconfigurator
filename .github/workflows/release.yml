@@ -28,7 +28,6 @@ jobs:
             --configuration Release `
             --runtime win-x64 `
             --self-contained true `
-            -p:PublishReadyToRun=true `
             --no-restore `
             -o publish/
 
