@@ -20,7 +20,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore
-        run: dotnet restore DragonOS.AudioConfigurator.sln
+        run: dotnet restore DragonOS.AudioConfigurator.sln --runtime win-x64
 
       - name: Publish
         run: |
