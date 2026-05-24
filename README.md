@@ -84,9 +84,9 @@ dotnet run --project src\WPF\DragonOS.AudioConfigurator.WPF.csproj
 dotnet build DragonOS.AudioConfigurator.sln -c Release --nologo
 ```
 
-### Signed release builds
+### SmartScreen warning
 
-Official releases are signed via **[SignPath](https://signpath.io)** to avoid Windows SmartScreen warnings. Community builds are unsigned — Windows will show a SmartScreen prompt on first run, which is normal for unsigned executables.
+Releases are currently unsigned. Windows will show a SmartScreen prompt on first run — click **More info → Run anyway** to proceed. This is expected for unsigned executables and does not indicate anything malicious.
 
 ---
 
